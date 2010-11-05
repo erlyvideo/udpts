@@ -1,0 +1,14 @@
+Source: udpts
+Priority: extra
+Maintainer: Max Lapshin <max@erlyvideo.org>
+Build-Depends: debhelper (>= 7), erlang-nox (>= 1:13) | erlang (>= 1:13)
+Standards-Version: 3.8.3
+Section: net
+Homepage: http://erlyvideo.org
+
+Package: udpts
+Section: net
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, erlang-nox (>= 1:13) | erlang (>= 1:13)
+Description: UDP->HTTP MPEG-TS retransmitter
+ UDP MPEG-TS retransmitter to HTTP
