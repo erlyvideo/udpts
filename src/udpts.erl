@@ -21,9 +21,17 @@
 -export([test/0, reload/0]).
 
 start() -> 
-  application:start(udpts).
+  inets:start(),
+  application:start(udpts),
+  inets:start(httpd, udpts_http:args()),
+  udpts:start_reader(5670, "vlc"),
+  ok.
   
   
+  
+
+
+
 test() ->
   ok.
 

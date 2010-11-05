@@ -29,12 +29,12 @@ start_link() ->
 reader_name(Port) when is_integer(Port) ->
   "udpts_reader:"++integer_to_list(Port).
 
-start_reader(Port, Consumer) ->
+start_reader(Port, Name) ->
   Id = reader_name(Port),
   Reader = 
   { 
     Id,
-    {udpts_reader, start_link ,[Port, Consumer]},
+    {udpts_reader, start_link, [Port, Name]},
     transient,
     10000,
     worker,
@@ -43,7 +43,16 @@ start_reader(Port, Consumer) ->
   supervisor:start_child(?MODULE, Reader).
 
 init([]) ->
+  ets:new(udpts_streams,[set,public]),
+  
   Supervisors = [
+    % {   udpts_httpd_sup,                         % Id       = internal id
+    %     {udpts_httpd,start_link,[]},             % StartFun = {M, F, A}
+    %     permanent,                               % Restart  = permanent | transient | temporary
+    %     2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+    %     worker,                                  % Type     = worker | supervisor
+    %     [udpts_httpd]                               % Modules  = [Module] | dynamic
+    % }
   ],
   
   {ok, {{one_for_one, 100, 5}, Supervisors}}.
