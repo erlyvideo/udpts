@@ -9,10 +9,20 @@
 -module(udpts_http).
 -author('Max Lapshin <max@erlyvideo.org>').
 -include("udpts.hrl").
+-include_lib("yaws/include/yaws_api.hrl").
 
--export([args/0]).
+
+-export([out/1]).
 
 
-args() ->
-  [{port,8000},{modules,[udpts_http]},{server_name,"localhost"},{server_root,"."},{document_root,"/tmp"}].
-  
+
+out(Req) ->
+  Path = string:strip(Req#arg.pathinfo, left, $/),
+  ?D({http, Path, self()}),
+  case udpts_reader:subscribe(Path, Req#arg.clisock) of
+    {ok, Pid} ->
+      {streamcontent_from_pid, "video/mpeg2", Pid};
+    {error, enoent} ->
+      [{status, 404},{content,"text/html", "No such stream: "++Path}]
+  end.
+      

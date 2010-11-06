@@ -18,18 +18,18 @@
 % PLUGIN API
 -export([start/0, stop/0]).
 
--export([test/0, reload/0]).
+-export([test/0, reload/0, start_reader/2]).
 
-start() -> 
-  inets:start(),
+start() ->
   application:start(udpts),
-  inets:start(httpd, udpts_http:args()),
   udpts:start_reader(5670, "vlc"),
+  yaws:start_embedded("wwwroot", [{port,8000},{appmods,[{"/stream",udpts_http}]}], [{enable_soap,false}], "udpts_httpd"),
   ok.
   
   
   
-
+start_reader(Port, Name) ->
+  udpts_sup:start_reader(Port, Name).
 
 
 test() ->

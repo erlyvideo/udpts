@@ -43,7 +43,7 @@ start_reader(Port, Name) ->
   supervisor:start_child(?MODULE, Reader).
 
 init([]) ->
-  ets:new(udpts_streams,[set,public]),
+  udpts_streams = ets:new(udpts_streams,[set,public,named_table]),
   
   Supervisors = [
     % {   udpts_httpd_sup,                         % Id       = internal id
