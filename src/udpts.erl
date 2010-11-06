@@ -21,9 +21,17 @@
 -export([test/0, reload/0, start_reader/2]).
 
 start() ->
+  Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
+    {ok, Env, _Path} ->
+      Env;
+    _ ->
+      [{udp_listeners, [{5670,"vlc"}]},{http_port,8000}]
+  end,
   application:start(udpts),
-  udpts:start_reader(5670, "vlc"),
-  yaws:start_embedded("wwwroot", [{port,8000},{appmods,[{"/stream",udpts_http}]}], [{enable_soap,false}], "udpts_httpd"),
+  [udpts:start_reader(Port, Name) || {Port,Name} <- proplists:get_value(udp_listeners, Config, [])],
+  SC = [{port,proplists:get_value(http_port, Config)}, {appmods,[{"/stream",udpts_http}]}],
+  GC = [{enable_soap,false},{flags,[{auth_log,false},{logdir,"log"}]}],
+  yaws:start_embedded("wwwroot", SC, GC, "udpts_httpd"),
   ok.
   
   

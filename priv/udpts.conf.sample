@@ -1,0 +1,4 @@
+{udp_listeners, [
+  {5670,"vlc"}
+]}.
+{http_port,8000}.
