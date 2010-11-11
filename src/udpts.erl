@@ -25,9 +25,8 @@ start() ->
     {ok, Env, _Path} ->
       Env;
     _ ->
-      [{udp_listeners, [{5670,"vlc"}]},{http_port,8000}]
+      [{http_port,8000}]
   end,
-  Config = [{udp_listeners, [{5670,"vlc"}]},{http_port,8000}],
   application:start(udpts),
   [udpts:start_reader(Port, Name) || {Port,Name} <- proplists:get_value(udp_listeners, Config, [])],
   SC = [{port,proplists:get_value(http_port, Config)}, {appmods,[{"/stream",udpts_http}]}],

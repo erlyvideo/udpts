@@ -62,6 +62,7 @@ subscribe(Name, Socket) ->
 
 init([Port, Name]) ->
   {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{reuseaddr,true},{recbuf,65536},inet]),
+  error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
   Counters = hipe_bifs:bytearray(8192, 16#FF),  %% MPEG-TS counters take 13 bits. it is 8192 maximum
@@ -165,7 +166,7 @@ sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Pack
   {Count, Errors, Reader1} = verify_ts(Packet, Reader, 0, []),
   case Errors of
     [] -> ok;
-    _ -> ?D(Errors)
+    _ -> error_logger:error_msg("Errors: ~p", [Errors])
   end,
   {Packet1, More} = erlang:split_binary(Packet, Count*188),
   send_packet(Packet1, Reader1#reader{buffer = More}).

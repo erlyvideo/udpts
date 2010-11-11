@@ -1,4 +1,4 @@
-include debian/version.mk
+# include debian/version.mk
 ERLROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
 ERLDIR := $(ERLROOT)/lib/udpts-$(VERSION)
 DESTROOT := $(CURDIR)/debian/udpts
@@ -14,7 +14,10 @@ clean:
 	rm -fv erl_crash.dump
 
 run: compile
-	erl -pa ebin -boot start_sasl -s udpts -sname udpts
+	ERL_LIBS=/usr/local/lib erl -pa ebin -boot start_sasl -s udpts -sname udpts
+
+start: compile
+	ERL_LIBS=/usr/local/lib erl -pa ebin -boot start_sasl -noinput -detached -s udpts -sname udpts
 	
 test:
 	@erl -pa ebin -s udpts test -noshell -noinput -s init stop
