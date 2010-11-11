@@ -13,7 +13,10 @@ clean:
 	rm -fv ebin/*.beam
 	rm -fv erl_crash.dump
 
-run: compile
+priv/udpts.conf:
+  [ -f priv/udpts.conf ] || cp priv/udpts.conf.sample priv/udpts.conf
+
+run: compile priv/udpts.conf
 	ERL_LIBS=/usr/local/lib erl -pa ebin -boot start_sasl -s udpts -sname udpts
 
 start: compile
