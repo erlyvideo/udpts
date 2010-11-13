@@ -21,7 +21,7 @@
 -export([test/0, reload/0, start_reader/2]).
 
 start() ->
-  Config1 = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
+  Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
     {ok, Env, _Path} ->
       Env;
     _ ->
