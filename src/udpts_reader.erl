@@ -22,7 +22,7 @@
 
 
 start_link(Port, Name) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [Port, Name], []).
+  gen_server:start_link(?MODULE, [Port, Name], []).
 
 
 subscribe(Name, Socket) ->

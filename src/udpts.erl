@@ -23,12 +23,16 @@
 start() ->
   Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
     {ok, Env, _Path} ->
+      error_logger:info_msg("Reading config from ~s: ~n~p", [_Path, Env]),
       Env;
     _ ->
       [{http_port,8000}]
   end,
   application:start(udpts),
-  [udpts:start_reader(Port, Name) || {Port,Name} <- proplists:get_value(udp_listeners, Config, [])],
+  [ begin
+      udpts:start_reader(Port, Name),
+      error_logger:info_msg("Start UDP reader ~s on port ~p", [Name, Port])
+  end || {Port,Name}  <- proplists:get_value(udp_listeners, Config, [])],
   SC = [{port,proplists:get_value(http_port, Config)}, {listen,{0,0,0,0}}, {appmods,[{"/stream",udpts_http}]}],
   GC = [{enable_soap,false},{flags,[{auth_log,false},{logdir,"log"}]}],
   yaws:start_embedded("wwwroot", SC, GC, "udpts_httpd"),
