@@ -61,7 +61,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{reuseaddr,true},{recbuf,65536},inet]),
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),

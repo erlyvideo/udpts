@@ -29,7 +29,7 @@ start() ->
   end,
   application:start(udpts),
   [udpts:start_reader(Port, Name) || {Port,Name} <- proplists:get_value(udp_listeners, Config, [])],
-  SC = [{port,proplists:get_value(http_port, Config)}, {appmods,[{"/stream",udpts_http}]}],
+  SC = [{port,proplists:get_value(http_port, Config)}, {listen,{0,0,0,0}}, {appmods,[{"/stream",udpts_http}]}],
   GC = [{enable_soap,false},{flags,[{auth_log,false},{logdir,"log"}]}],
   yaws:start_embedded("wwwroot", SC, GC, "udpts_httpd"),
   ok.
