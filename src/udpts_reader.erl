@@ -29,7 +29,7 @@ subscribe(Name, Socket) ->
   case ets:lookup(udpts_streams, Name) of
     [{Name,Pid}] ->
       erlang:monitor(process, Pid),
-      gen_server:call(Pid, {subscribe, self(), Socket});
+      gen_server:call(Pid, {subscribe, self(), Socket}, 10000);
     [] -> 
       {error, enoent}
   end.
