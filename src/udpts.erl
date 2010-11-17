@@ -18,7 +18,7 @@
 % PLUGIN API
 -export([start/0, stop/0]).
 
--export([test/0, reload/0, start_reader/2]).
+-export([test/0, reload/0, start_reader/3]).
 
 start() ->
   Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
@@ -41,8 +41,8 @@ start() ->
   
   
   
-start_reader(Port, Name) ->
-  udpts_sup:start_reader(Port, Name).
+start_reader(Port, Name, Options) ->
+  udpts_sup:start_reader(Port, Name, Options).
 
 
 test() ->
