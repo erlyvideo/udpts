@@ -14,7 +14,7 @@
 
 -export([init/1,start_link/0]).
 
--export([start_reader/2]).
+-export([start_reader/3]).
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -29,12 +29,12 @@ start_link() ->
 reader_name(Port) when is_integer(Port) ->
   "udpts_reader:"++integer_to_list(Port).
 
-start_reader(Port, Name) ->
+start_reader(Port, Name, Options) ->
   Id = reader_name(Port),
   Reader = 
   { 
     Id,
-    {udpts_reader, start_link, [Port, Name]},
+    {udpts_reader, start_link, [Port, Name, Options]},
     transient,
     10000,
     worker,

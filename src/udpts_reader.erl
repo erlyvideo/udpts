@@ -12,7 +12,7 @@
 
 
 %% External API
--export([start_link/2]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
@@ -21,8 +21,8 @@
 -export([subscribe/2]).
 
 
-start_link(Port, Name) ->
-  gen_server:start_link(?MODULE, [Port, Name], []).
+start_link(Port, Name, Options) ->
+  gen_server:start_link(?MODULE, [Port, Name, Options], []).
 
 
 subscribe(Name, Socket) ->
@@ -40,7 +40,8 @@ subscribe(Name, Socket) ->
   port,
   clients = [],
   buffer = <<>>,
-  counters
+  counters,
+  error_count = 0
 }).
 
 
@@ -60,12 +61,13 @@ subscribe(Name, Socket) ->
 %%----------------------------------------------------------------------
 
 
-init([Port, Name]) ->
+init([Port, Name, Options]) ->
   {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
   Counters = hipe_bifs:bytearray(8192, 16#FF),  %% MPEG-TS counters take 13 bits. it is 8192 maximum
+  timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   {ok, #reader{socket = Socket, port = Port, name = Name, counters = Counters}}.
 
 %%-------------------------------------------------------------------------
@@ -118,6 +120,14 @@ handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
   inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(Packet, Reader)};
 
+handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
+  {noreply, Reader#reader{error_count = 0}};
+
+handle_info(flush_errors, #reader{error_count = ErrorCount, name = Name, port = Port} = Reader) ->
+  error_logger:info_msg("~p ~p error_count: ~p", [Name, Port, ErrorCount]),
+  {noreply, Reader#reader{error_count = 0}};
+
+
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
   {noreply, State}.
@@ -162,14 +172,14 @@ handle_packet(Packet, #reader{buffer = Buf} = Reader) ->
 handle_ts(Packet, #reader{} = Reader) ->
   sync_packet(Packet, Reader).
 
-sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, Reader) ->
+sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, #reader{error_count = ErrorCount} = Reader) ->
   {Count, Errors, Reader1} = verify_ts(Packet, Reader, 0, []),
-  case Errors of
-    [] -> ok;
-    _ -> error_logger:error_msg("Errors: ~p", [Errors])
-  end,
+  % case Errors of
+  %   [] -> ok;
+  %   _ -> error_logger:error_msg("Errors: ~p", [Errors])
+  % end,
   {Packet1, More} = erlang:split_binary(Packet, Count*188),
-  send_packet(Packet1, Reader1#reader{buffer = More}).
+  send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)}).
 
   
 verify_ts(<<16#47, _TEI:1, _Start:1, _:1, Pid:13, _Opt:4, Counter:4, _:184/binary, Rest/binary>>, Reader, Count, Errors) ->

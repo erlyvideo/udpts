@@ -29,8 +29,9 @@ start() ->
       [{http_port,8000}]
   end,
   application:start(udpts),
+  Options = [{error_flush_timeout, proplists:get_value(error_flush_timeout, Config, 60000)}],
   [ begin
-      udpts:start_reader(Port, Name),
+      udpts:start_reader(Port, Name, Options),
       error_logger:info_msg("Start UDP reader ~s on port ~p", [Name, Port])
   end || {Port,Name}  <- proplists:get_value(udp_listeners, Config, [])],
   SC = [{port,proplists:get_value(http_port, Config)}, {listen,{0,0,0,0}}, {appmods,[{"/stream",udpts_http}]}],
