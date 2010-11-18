@@ -1,50 +1,59 @@
-%%% @author     Max Lapshin <max@erlyvideo.org> [http://erlyvideo.org]
-%%% @copyright  2010 Max Lapshin
-%%% @doc        HTTPD module for UDPTS
+%%% @author     Max Lapshin <max@maxidoors.ru> [http://erlyvideo.org]
+%%% @copyright  2009-2010 Max Lapshin
+%%% @doc        Generic non-blocking listener
 %%% @reference  See <a href="http://erlyvideo.org/" target="_top">http://erlyvideo.org/</a> for more information
 %%% @end
 %%%
+%%% This file is part of erlyvideo.
+%%% 
+%%% erlyvideo is free software: you can redistribute it and/or modify
+%%% it under the terms of the GNU General Public License as published by
+%%% the Free Software Foundation, either version 3 of the License, or
+%%% (at your option) any later version.
+%%%
+%%% erlyvideo is distributed in the hope that it will be useful,
+%%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%%% GNU General Public License for more details.
+%%%
+%%% You should have received a copy of the GNU General Public License
+%%% along with erlyvideo.  If not, see <http://www.gnu.org/licenses/>.
 %%%
 %%%---------------------------------------------------------------------------------------
--module(udpts_http).
--author('Max Lapshin <max@erlyvideo.org>').
--include("udpts.hrl").
+-module(gen_listener).
+-author('Max Lapshin <max@maxidoors.ru>').
 -behaviour(gen_server).
 
 
--export([accept/2, set_socket/2]).
-
 %% External API
--export([start_link/0]).
+-export([start_link/3, start_link/4]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 
--record(state, {
-  socket,
-  name
-}).
 
-accept(Socket, _Args) ->
-  {ok, HTTP} = udpts_sup:start_http_worker(),
-  gen_tcp:controlling_process(Socket, HTTP),
-  udpts_http:set_socket(HTTP, Socket),
-  ok.
-  
+start_link(BindSpec, Callback, Args) ->
+  gen_server:start_link(?MODULE, [BindSpec, Callback, Args], []).
+
+start_link(Name, BindSpec, Callback, Args) ->
+  gen_server:start_link({local, Name}, ?MODULE, [BindSpec, Callback, Args], []).
 
 
-
-start_link() ->
-  gen_server:start_link(?MODULE, [], []).
-
-
-set_socket(HTTP, Socket) ->
-  gen_server:call(HTTP, {set_socket, Socket}).
 
 %%%------------------------------------------------------------------------
 %%% Callback functions from gen_server
 %%%------------------------------------------------------------------------
+
+-record(listener, {
+  socket,
+  ref,
+  bindspec,
+  addr,
+  port,
+  callback,
+  args
+}).
 
 %%----------------------------------------------------------------------
 %% @spec (Port::integer()) -> {ok, State}           |
@@ -58,8 +67,9 @@ set_socket(HTTP, Socket) ->
 %%----------------------------------------------------------------------
 
 
-init([]) ->
-  {ok, #state{}}.
+init([BindSpec, Callback, Args]) ->
+  self() ! bind,
+  {ok, #listener{bindspec = BindSpec, callback = Callback, args = Args}}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -73,11 +83,6 @@ init([]) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({set_socket, Socket}, _From, #state{} = State) ->
-  inet:setopts(Socket, [{active,once},{packet,http}]),
-  {reply, ok, State#state{socket = Socket}};
-  
-  
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
 
@@ -104,41 +109,51 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({http, Socket, {http_request, 'GET', {abs_path, Path}, _Version}}, State) ->
-  case Path of
-    "/stream/"++Stream ->
-      inet:setopts(Socket, [{active,once}]),
-      {noreply, State#state{name = Stream}};
-    _ ->
-      {stop, {unhandled_path, Path}, State}
+handle_info(bind, #listener{bindspec = BindSpec} = Server) ->
+  Opts1 = [binary, {packet, raw}, {reuseaddr, true}, 
+          {keepalive, true}, {backlog, 30}, {active, false}],
+  {BindAddr, Port} = case BindSpec of
+    P when is_number(P) -> {undefined, P};
+    {Addr, P} -> {Addr, P};
+    _ when is_list(BindSpec) ->
+      [AddrS, P] = string:tokens(BindSpec, ":"),
+      {ok, Addr} = inet_parse:address(AddrS),
+      {Addr, list_to_integer(P)}
+  end,
+  Opts2 = case BindAddr of
+    undefined -> Opts1;
+    _ -> [{ip,BindAddr}|Opts1]
+  end,
+  case gen_tcp:listen(Port, Opts2) of
+    {ok, ListenSocket} ->
+      %%Create first accepting process
+      {ok, Ref} = prim_inet:async_accept(ListenSocket, -1),
+      {noreply, Server#listener{addr = BindAddr, port = Port, socket = ListenSocket, ref = Ref}};
+    {error, eaccess} ->
+      error_logger:error_msg("Error connecting to port ~p. Try to open it in firewall or run with sudo.\n", [Port]),
+      {stop, eaccess};
+    {error, Reason} ->
+      {stop, Reason}
+  end;
+    
+handle_info({inet_async, ListenSock, Ref, {ok, CliSocket}},
+            #listener{socket = ListenSock, ref = Ref, callback = Callback, args = Args} = State) ->
+  case set_sockopt(ListenSock, CliSocket) of
+    ok ->
+      case Callback:accept(CliSocket, Args) of
+        ok -> ok;
+        _Else -> gen_tcp:close(CliSocket)
+      end,
+      {ok, NewRef} = prim_inet:async_accept(ListenSock, -1),
+      {noreply, State#listener{ref = NewRef}};
+    {error, Reason} ->
+      error_logger:error_msg("Error setting socket options: ~p.\n", [Reason]),
+      {stop, Reason, State}
   end;
   
-handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, State) ->
-  inet:setopts(Socket, [{active,once}]),
-  {noreply, State};
-
-handle_info({http, Socket, http_eoh}, #state{name = Name} = State) ->
-  {ok, {Addr,Port}} = inet:peername(Socket),
-  case udpts_reader:subscribe(Name, Socket) of
-    {ok, Pid} ->
-      erlang:monitor(process, Pid),
-      inet:setopts(Socket, [{active,true}]),
-      error_logger:info_msg("200 ~p ~s~n", [Addr, Name]),
-      {noreply, State};
-    {error, enoent} ->
-      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\n\r\nNot found\r\n"),
-      error_logger:info_msg("404 ~p ~s~n", [Addr, Name]),
-      {stop, normal, State}
-  end;
-
-handle_info({tcp_closed, _Socket}, State) ->
-  {stop, normal, State};
-
-handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
-  {stop, normal, Server};
 
 handle_info(_Info, State) ->
-  {stop, {unknown_message, _Info}, State}.
+  {noreply, State}.
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -159,3 +174,16 @@ terminate(_Reason, _State) ->
 %%-------------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
+
+
+set_sockopt(ListSock, CliSocket) ->
+  true = inet_db:register_socket(CliSocket, inet_tcp),
+  case prim_inet:getopts(ListSock, [active, nodelay, keepalive, delay_send, priority, tos]) of
+    {ok, Opts} ->
+      case prim_inet:setopts(CliSocket, Opts) of
+        ok    -> ok;
+        Error -> gen_tcp:close(CliSocket), Error
+      end;
+    Error ->
+      gen_tcp:close(CliSocket), Error
+  end.

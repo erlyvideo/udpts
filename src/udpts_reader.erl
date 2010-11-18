@@ -62,7 +62,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet]),
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
@@ -84,6 +84,7 @@ init([Port, Name, Options]) ->
 %%-------------------------------------------------------------------------
 handle_call({subscribe, Client, Socket}, _From, #reader{clients = Clients} = Reader) ->
   erlang:monitor(process, Client),
+  gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
   {reply, {ok, self()}, Reader#reader{clients = [{Client,Socket}|Clients]}};
   
 handle_call(Request, _From, State) ->

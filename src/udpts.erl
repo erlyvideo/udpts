@@ -34,9 +34,8 @@ start() ->
       udpts:start_reader(Port, Name, Options),
       error_logger:info_msg("Start UDP reader ~s on port ~p", [Name, Port])
   end || {Port,Name}  <- proplists:get_value(udp_listeners, Config, [])],
-  SC = [{port,proplists:get_value(http_port, Config)}, {listen,{0,0,0,0}}, {appmods,[{"/stream",udpts_http}]}],
-  GC = [{enable_soap,false},{flags,[{auth_log,false},{logdir,"log"}]}],
-  yaws:start_embedded("wwwroot", SC, GC, "udpts_httpd"),
+  HTTPPort = proplists:get_value(http_port, Config),
+  udpts_sup:start_http_listener(HTTPPort),
   ok.
   
   

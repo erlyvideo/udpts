@@ -14,7 +14,25 @@
 
 -export([init/1,start_link/0]).
 
--export([start_reader/3]).
+-export([start_reader/3, start_http_listener/1, start_http_worker/0]).
+-define(NAMED_SERVER(Id,M,A), {Id,                               % Id       = internal id
+    {M,start_link,A},                  % StartFun = {M, F, A}
+    temporary,                               % Restart  = permanent | transient | temporary
+    2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
+    worker,                                  % Type     = worker | supervisor
+    [M]                                      % Modules  = [Module] | dynamic
+}).
+
+-define(SIMPLE_SERVER(M,A), ?NAMED_SERVER(undefined, M, A)).
+
+-define(SUPERVISOR_LINK(Name), {Name,
+    {supervisor,start_link,[{local, Name}, ?MODULE, [Name]]},
+    permanent,                               % Restart  = permanent | transient | temporary
+    infinity,                                % Shutdown = brutal_kill | int() >= 0 | infinity
+    supervisor,                              % Type     = worker | supervisor
+    []                                       % Modules  = [Module] | dynamic
+}).
+
 
 %%--------------------------------------------------------------------
 %% @spec () -> any()
@@ -25,6 +43,24 @@
 start_link() ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
+
+start_http_listener(Port) ->
+  Id = {udpts_http,Port},
+  Reader = 
+  { 
+    Id,
+    {gen_listener, start_link, [Port, udpts_http, []]},
+    transient,
+    10000,
+    worker,
+    [udpts_http]
+  },
+  supervisor:start_child(?MODULE, Reader).
+
+
+start_http_worker() ->
+  supervisor:start_child(http_worker_sup, []).
+  
 
 reader_name(Port) when is_integer(Port) ->
   "udpts_reader:"++integer_to_list(Port).
@@ -42,17 +78,16 @@ start_reader(Port, Name, Options) ->
   },
   supervisor:start_child(?MODULE, Reader).
 
+
+init([http_worker_sup]) ->
+  {ok, {{simple_one_for_one, 100, 100}, [?SIMPLE_SERVER(udpts_http, [])]}};
+
+
 init([]) ->
   udpts_streams = ets:new(udpts_streams,[set,public,named_table]),
   
   Supervisors = [
-    % {   udpts_httpd_sup,                         % Id       = internal id
-    %     {udpts_httpd,start_link,[]},             % StartFun = {M, F, A}
-    %     permanent,                               % Restart  = permanent | transient | temporary
-    %     2000,                                    % Shutdown = brutal_kill | int() >= 0 | infinity
-    %     worker,                                  % Type     = worker | supervisor
-    %     [udpts_httpd]                               % Modules  = [Module] | dynamic
-    % }
+    ?SUPERVISOR_LINK(http_worker_sup)
   ],
   
   {ok, {{one_for_one, 100, 5}, Supervisors}}.
