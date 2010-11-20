@@ -85,7 +85,6 @@ init([Port, Name, Options]) ->
 handle_call({subscribe, Client, Socket}, _From, #reader{clients = Clients} = Reader) ->
   erlang:monitor(process, Client),
   gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
-  ?D({self(), client_subscribed, Client}),
   {reply, {ok, self()}, Reader#reader{clients = [{Client,Socket}|Clients]}};
   
 handle_call(Request, _From, State) ->
@@ -115,7 +114,6 @@ handle_cast(_Msg, State) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
-  ?D({client_died, Client}),
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
 handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
@@ -124,7 +122,6 @@ handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
   {noreply, handle_packet(Packet, Reader)};
 
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
-  ?D({self(), Reader#reader.clients}),
   {noreply, Reader#reader{error_count = 0}};
 
 handle_info(flush_errors, #reader{error_count = ErrorCount, name = Name, port = Port} = Reader) ->
