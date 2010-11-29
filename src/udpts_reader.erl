@@ -66,7 +66,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
@@ -120,10 +120,11 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
-handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
+handle_info({udp, _Socket, _IP, _InPortNo, Packet}, Reader) ->
+  Data = flush_udp_packets([Packet]),
   % ?D({udp, size(Packet)}),
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, handle_packet(Packet, Reader)};
+  % inet:setopts(Socket, [{active, once}]),
+  {noreply, handle_packet(Data, Reader)};
 
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
   {noreply, Reader#reader{error_count = 0}};
@@ -140,7 +141,16 @@ handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = Desyn
 
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
-  {noreply, State}.
+  {stop, {unknown_message, _Info}}.
+
+
+flush_udp_packets(Packets) when length(Packets) < 100 ->
+  receive
+    {udp, _Socket, _IP, _InPortNo, Packet} -> flush_udp_packets([Packet|Packets])
+  after
+    0 -> iolist_to_binary(lists:reverse(Packets))
+  end.
+    
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
