@@ -17,10 +17,10 @@ priv/udpts.conf:
 	[ -f priv/udpts.conf ] || cp priv/udpts.conf.sample priv/udpts.conf
 
 run: compile priv/udpts.conf
-	ERL_LIBS=/usr/local/lib erl -pa ebin -boot start_sasl -s udpts -sname udpts
+	ERL_LIBS=/usr/local/lib erl +A 4 +K true -pa ebin -boot start_sasl -s udpts -sname udpts
 
 start: compile
-	ERL_LIBS=/usr/local/lib erl -pa ebin -boot start_sasl -noinput -detached -s udpts -sname udpts
+	ERL_LIBS=/usr/local/lib erl +A 4 +K true -pa ebin -boot start_sasl -noinput -detached -s udpts -sname udpts
 	
 test:
 	@erl -pa ebin -s udpts test -noshell -noinput -s init stop

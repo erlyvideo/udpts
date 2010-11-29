@@ -41,7 +41,8 @@ subscribe(Name, Socket) ->
   clients = [],
   buffer = <<>>,
   counters,
-  error_count = 0
+  error_count = 0,
+  desync_count = 0
 }).
 
 
@@ -124,9 +125,9 @@ handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
   {noreply, Reader#reader{error_count = 0}};
 
-handle_info(flush_errors, #reader{error_count = ErrorCount, name = Name, port = Port} = Reader) ->
-  error_logger:info_msg("~p ~p error_count: ~p", [Name, Port, ErrorCount]),
-  {noreply, Reader#reader{error_count = 0}};
+handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = DesyncCount, name = Name, port = Port} = Reader) ->
+  error_logger:info_msg("~p ~p error_count: ~p, desync_count: ~p", [Name, Port, ErrorCount, DesyncCount]),
+  {noreply, Reader#reader{error_count = 0, desync_count = 0}};
 
 
 handle_info(_Info, State) ->
@@ -180,7 +181,14 @@ sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Pack
   %   _ -> error_logger:error_msg("Errors: ~p", [Errors])
   % end,
   {Packet1, More} = erlang:split_binary(Packet, Count*188),
-  send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)}).
+  send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)});
+  
+sync_packet(<<_, Packet/binary>> = AllPacket, #reader{desync_count = DesyncCount} = Reader) when size(AllPacket) > 377 ->
+  sync_packet(Packet, Reader#reader{desync_count = DesyncCount + 1});
+
+sync_packet(Packet, #reader{} = Reader) ->
+  Reader#reader{buffer = Packet}.
+  
 
   
 verify_ts(<<16#47, _TEI:1, _Start:1, _:1, Pid:13, _Opt:4, Counter:4, _:184/binary, Rest/binary>>, Reader, Count, Errors) ->
