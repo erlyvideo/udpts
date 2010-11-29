@@ -120,8 +120,8 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
-handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
-  Data = flush_udp_packets(Socket, [Packet]),
+handle_info({udp, _Socket, _IP, _InPortNo, Packet}, Reader) ->
+  Data = flush_udp_packets(Reader, [Packet]),
   % ?D({udp, size(Packet)}),
   % inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(Data, Reader)};
@@ -144,16 +144,18 @@ handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.
 
 
-flush_udp_packets(Socket, Packets) when length(Packets) < 200 ->
+flush_udp_packets(#reader{socket = Socket} = Reader, Packets) when length(Packets) < 200 ->
   receive
-    {udp, Socket, _IP, _InPortNo, Packet} -> flush_udp_packets(Socket, [Packet|Packets])
+    {udp, Socket, _IP, _InPortNo, Packet} -> flush_udp_packets(Reader, [Packet|Packets])
   after
     0 -> 
       inet:setopts(Socket, [{active,true}]),
       iolist_to_binary(lists:reverse(Packets))
   end;
   
-flush_udp_packets(Socket, Packets) ->
+flush_udp_packets(#reader{socket = Socket, name = Name} = _Reader, Packets) ->
+  {message_queue_len, Len} = process_info(self(), message_queue_len),
+  error_logger:info_msg("Overflow in channel ~p: ~p messages", [Name, Len]),
   inet:setopts(Socket, [{active,once}]),
   iolist_to_binary(lists:reverse(Packets)).
     
