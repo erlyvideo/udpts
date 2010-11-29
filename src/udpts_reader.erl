@@ -117,6 +117,12 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
+
+handle_info({udp, Socket, _IP, _InPortNo, Packet}, #reader{buffer = Buf} = Reader) when size(Buf) < 12000 ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, Reader#reader{buffer = <<Buf/binary, Packet/binary>>}};
+
+
 handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
   % ?D({udp, size(Packet)}),
   inet:setopts(Socket, [{active, once}]),
