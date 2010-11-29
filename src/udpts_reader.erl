@@ -40,7 +40,6 @@ subscribe(Name, Socket) ->
   port,
   clients = [],
   buffer = <<>>,
-  errors = [],
   counters,
   error_count = 0,
   desync_count = 0
@@ -127,11 +126,7 @@ handle_info(flush_errors, #reader{error_count = 0} = Reader) ->
   {noreply, Reader#reader{error_count = 0}};
 
 handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = DesyncCount, name = Name, port = Port} = Reader) ->
-  Errors = case length(Reader#reader.errors) of
-    L when L > 20 -> lists:reverse(lists:nthtail(20, Reader#reader.errors));
-    _ -> lists:reverse(Reader#reader.errors)
-  end,
-  error_logger:info_msg("~p ~p error_count: ~p, desync_count: ~p, errors: ~p", [Name, Port, ErrorCount, DesyncCount, Errors]),
+  error_logger:info_msg("~p ~p error_count: ~p, desync_count: ~p", [Name, Port, ErrorCount, DesyncCount]),
   {noreply, Reader#reader{error_count = 0, desync_count = 0}};
 
 
@@ -179,16 +174,14 @@ handle_packet(Packet, #reader{buffer = Buf} = Reader) ->
 handle_ts(Packet, #reader{} = Reader) ->
   sync_packet(Packet, Reader).
 
-sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, #reader{error_count = ErrorCount, errors = CurErrors} = Reader) ->
-  {Count, Errors, Reader1} = verify_ts(Packet, Reader, 0, CurErrors),
+sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, #reader{error_count = ErrorCount} = Reader) ->
+  {Count, Errors, Reader1} = verify_ts(Packet, Reader, 0, []),
   % case Errors of
   %   [] -> ok;
   %   _ -> error_logger:error_msg("Errors: ~p", [Errors])
   % end,
-  
   {Packet1, More} = erlang:split_binary(Packet, Count*188),
-  % send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)});
-  send_packet(Packet1, Reader1#reader{buffer = More, error_count = length(Errors), errors = Errors});
+  send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)});
   
 sync_packet(<<_, Packet/binary>> = AllPacket, #reader{desync_count = DesyncCount} = Reader) when size(AllPacket) > 377 ->
   sync_packet(Packet, Reader#reader{desync_count = DesyncCount + 1});
