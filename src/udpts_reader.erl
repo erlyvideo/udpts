@@ -120,8 +120,8 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
-handle_info({udp, _Socket, _IP, _InPortNo, Packet}, Reader) ->
-  Data = flush_udp_packets([Packet]),
+handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
+  Data = flush_udp_packets(Socket, [Packet]),
   % ?D({udp, size(Packet)}),
   % inet:setopts(Socket, [{active, once}]),
   {noreply, handle_packet(Data, Reader)};
@@ -141,15 +141,21 @@ handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = Desyn
 
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
-  {stop, {unknown_message, _Info}}.
+  {stop, {unknown_message, _Info}, State}.
 
 
-flush_udp_packets(Packets) when length(Packets) < 100 ->
+flush_udp_packets(Socket, Packets) when length(Packets) < 200 ->
   receive
-    {udp, _Socket, _IP, _InPortNo, Packet} -> flush_udp_packets([Packet|Packets])
+    {udp, Socket, _IP, _InPortNo, Packet} -> flush_udp_packets(Socket, [Packet|Packets])
   after
-    0 -> iolist_to_binary(lists:reverse(Packets))
-  end.
+    0 -> 
+      inet:setopts(Socket, [{active,true}]),
+      iolist_to_binary(lists:reverse(Packets))
+  end;
+  
+flush_udp_packets(Socket, Packets) ->
+  inet:setopts(Socket, [{active,once}]),
+  iolist_to_binary(lists:reverse(Packets)).
     
 
 %%-------------------------------------------------------------------------
