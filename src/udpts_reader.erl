@@ -13,6 +13,8 @@
 -include("udpts.hrl").
 
 
+-define(BUF_SIZE_LIMIT, 15000).
+
 %% External API
 -export([start_link/3]).
 
@@ -42,6 +44,7 @@ subscribe(Name, Socket) ->
   port,
   clients = [],
   buffer = <<>>,
+  buffer_size = 0,
   errors = [],
   counters,
   error_count = 0,
@@ -66,7 +69,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
@@ -120,11 +123,9 @@ handle_cast(_Msg, State) ->
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
-handle_info({udp, _Socket, _IP, _InPortNo, Packet}, Reader) ->
-  Data = flush_udp_packets(Reader, [Packet]),
-  % ?D({udp, size(Packet)}),
-  % inet:setopts(Socket, [{active, once}]),
-  {noreply, handle_packet(Data, Reader)};
+handle_info({udp, Socket, _IP, _InPortNo, Packet}, #reader{buffer_size = BufferSize} = Reader) ->
+  inet:setopts(Socket, [{active, once}]),
+  {noreply, handle_packet(Packet, Reader#reader{buffer_size = BufferSize + size(Packet)})};
 
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
   {noreply, Reader#reader{error_count = 0}};
@@ -142,22 +143,6 @@ handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = Desyn
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
   {stop, {unknown_message, _Info}, State}.
-
-
-flush_udp_packets(#reader{socket = Socket} = Reader, Packets) when length(Packets) < 200 ->
-  receive
-    {udp, Socket, _IP, _InPortNo, Packet} -> flush_udp_packets(Reader, [Packet|Packets])
-  after
-    0 -> 
-      inet:setopts(Socket, [{active,true}]),
-      iolist_to_binary(lists:reverse(Packets))
-  end;
-  
-flush_udp_packets(#reader{socket = Socket, name = Name} = _Reader, Packets) ->
-  {message_queue_len, Len} = process_info(self(), message_queue_len),
-  error_logger:info_msg("Overflow in channel ~p: ~p messages", [Name, Len]),
-  inet:setopts(Socket, [{active,once}]),
-  iolist_to_binary(lists:reverse(Packets)).
     
 
 %%-------------------------------------------------------------------------
@@ -200,19 +185,21 @@ handle_packet(Packet, #reader{buffer = Buf} = Reader) ->
 handle_ts(Packet, #reader{} = Reader) ->
   sync_packet(Packet, Reader).
 
-sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, Reader) ->
+sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, 
+            #reader{buffer_size = BufferSize} = Reader) when BufferSize > ?BUF_SIZE_LIMIT ->
   {Packet1, _Errors, Reader1} = verify_ts(Packet, Reader, [], []),
-  % case Errors of
+  % case _Errors of
   %   [] -> ok;
-  %   _ -> error_logger:error_msg("Errors: ~p", [Errors])
+  %   _ -> error_logger:error_msg("Errors: ~p", [_Errors])
   % end,
   send_packet(Packet1, Reader1);
   
-sync_packet(<<_, Packet/binary>> = AllPacket, #reader{desync_count = DesyncCount} = Reader) when size(AllPacket) > 377 ->
+sync_packet(<<_, Packet/binary>> = AllPacket, #reader{desync_count = DesyncCount, buffer_size = BufferSize} = Reader) 
+           when size(AllPacket) > 377 andalso BufferSize > ?BUF_SIZE_LIMIT ->
   sync_packet(Packet, Reader#reader{desync_count = DesyncCount + 1});
 
 sync_packet(Packet, #reader{} = Reader) ->
-  Reader#reader{buffer = Packet}.
+  Reader#reader{buffer = Packet, buffer_size = size(Packet)}.
   
 
   
@@ -231,7 +218,7 @@ verify_ts(<<Packet:188/binary, Rest/binary>>, Reader, Errors, Output) ->
   end;
     
 verify_ts(Rest, #reader{error_count = ErrorCount} = Reader, Errors, Output) ->
-  {lists:reverse(Output), Errors, Reader#reader{buffer = Rest, error_count = ErrorCount + length(Errors)}}.
+  {lists:reverse(Output), Errors, Reader#reader{buffer = Rest, buffer_size = size(Rest), error_count = ErrorCount + length(Errors)}}.
 
 
   
