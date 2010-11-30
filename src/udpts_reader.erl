@@ -63,7 +63,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,once},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
@@ -118,15 +118,11 @@ handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = 
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
 
-handle_info({udp, Socket, _IP, _InPortNo, Packet}, #reader{buffer = Buf} = Reader) when size(Buf) < 12000 ->
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, Reader#reader{buffer = <<Buf/binary, Packet/binary>>}};
+handle_info({udp, _Socket, _IP, _InPortNo, Packet}, #reader{buffer = Buffer} = Reader) ->
+  Data = flush_packets(<<Buffer/binary, Packet/binary>>),  
+  {noreply, handle_ts(Data, Reader)};
 
 
-handle_info({udp, Socket, _IP, _InPortNo, Packet}, Reader) ->
-  % ?D({udp, size(Packet)}),
-  inet:setopts(Socket, [{active, once}]),
-  {noreply, handle_packet(Packet, Reader)};
 
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
   {noreply, Reader#reader{error_count = 0}};
@@ -139,6 +135,17 @@ handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = Desyn
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
   {noreply, State}.
+
+
+flush_packets(Buffer) when size(Buffer) > 12000 ->
+  Buffer;
+
+flush_packets(Buffer) ->
+  receive
+    {udp, _Socket, _IP, _InPortNo, Packet} -> flush_packets(<<Buffer/binary, Packet/binary>>)
+  after
+    0 -> Buffer
+  end.  
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -171,12 +178,6 @@ set_counter(#reader{counters = Counters} = Reader, Pid, Counter) ->
   
 
 
-handle_packet(Packet, #reader{buffer = Buf} = Reader) when size(Buf) == 0 ->
-  handle_ts(Packet, Reader);
-
-handle_packet(Packet, #reader{buffer = Buf} = Reader) ->
-  handle_ts(<<Buf/binary, Packet/binary>>, Reader).
-  
 handle_ts(Packet, #reader{} = Reader) ->
   sync_packet(Packet, Reader).
 
