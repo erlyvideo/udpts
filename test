@@ -1,0 +1,18 @@
+#!/usr/bin/env escript
+
+-define(CMD_OPEN, 1).
+
+main([]) ->
+  ok = erl_ddll:load_driver("ebin", udpts_drv),
+  Port = open_port({spawn_driver,udpts_drv},[binary]),
+  A = port_control(Port, ?CMD_OPEN, <<"5670">>),
+  io:format("Output: ~p~n", [A]),
+  loop(Port),
+  ok.
+
+loop(Port) ->
+  receive
+    {Port, {data, Else}} -> io:format("S: ~p~n", [size(Else)]), loop(Port)
+  after
+    5000 -> ok
+  end.

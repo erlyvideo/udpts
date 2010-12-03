@@ -10,6 +10,7 @@
 -behaviour(gen_server).
 -include("udpts.hrl").
 
+-define(CMD_OPEN, 1).
 
 %% External API
 -export([start_link/3]).
@@ -63,13 +64,33 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
+  {ok, Socket} = init_driver(Port),
+  % {ok, Socket} = init_socket(Socket),
+      
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
   Counters = hipe_bifs:bytearray(8192, 16#FF),  %% MPEG-TS counters take 13 bits. it is 8192 maximum
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   {ok, #reader{socket = Socket, port = Port, name = Name, counters = Counters}}.
+
+
+init_driver(Port) ->
+  io:format("Load from ~p~n", [code:lib_dir(udpts,ebin)]),
+  case erl_ddll:load_driver(code:lib_dir(udpts,ebin), udpts_drv) of
+  	ok -> ok;
+  	{error, already_loaded} -> ok;
+  	_ -> exit({error, could_not_load_driver})
+  end,
+  Socket = open_port({spawn, udpts_drv}, [binary]),
+  <<"ok">> = port_control(Socket, ?CMD_OPEN, list_to_binary(integer_to_list(Port))),
+  {ok, Socket}.
+
+
+init_socket(Port) ->
+  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
+  {ok, Socket}.
+  
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -123,6 +144,11 @@ handle_info({udp, _Socket, _IP, _InPortNo, Packet}, #reader{buffer = Buffer} = R
   {noreply, handle_ts(Data, Reader)};
 
 
+handle_info({Socket, {data, Data}}, #reader{socket = Socket, buffer = Buffer} = Reader) when size(Buffer) == 0 ->
+  {noreply, handle_ts(Data, Reader)};
+
+handle_info({Socket, {data, Data}}, #reader{socket = Socket, buffer = Buffer} = Reader) ->
+  {noreply, handle_ts(<<Buffer/binary, Data/binary>>, Reader)};
 
 handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
   {noreply, Reader#reader{error_count = 0}};
