@@ -11,6 +11,7 @@
 -include("udpts.hrl").
 
 -define(CMD_OPEN, 1).
+-define(CMD_ERRORS, 2).
 
 %% External API
 -export([start_link/3]).
@@ -39,11 +40,7 @@ subscribe(Name, Socket) ->
   socket,
   name,
   port,
-  clients = [],
-  buffer = <<>>,
-  counters,
-  error_count = 0,
-  desync_count = 0
+  clients = []
 }).
 
 
@@ -70,9 +67,8 @@ init([Port, Name, Options]) ->
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, {Name, self()}),
-  Counters = hipe_bifs:bytearray(8192, 16#FF),  %% MPEG-TS counters take 13 bits. it is 8192 maximum
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
-  {ok, #reader{socket = Socket, port = Port, name = Name, counters = Counters}}.
+  {ok, #reader{socket = Socket, port = Port, name = Name}}.
 
 
 init_driver(Port) ->
@@ -87,10 +83,6 @@ init_driver(Port) ->
   {ok, Socket}.
 
 
-init_socket(Port) ->
-  {ok, Socket} = gen_udp:open(Port, [binary, {active,true},{recbuf,65536},inet,{ip,{0,0,0,0}}]),
-  {ok, Socket}.
-  
 
 %%-------------------------------------------------------------------------
 %% @spec (Request, From, State) -> {reply, Reply, State}          |
@@ -139,39 +131,20 @@ handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = 
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
 
-handle_info({udp, _Socket, _IP, _InPortNo, Packet}, #reader{buffer = Buffer} = Reader) ->
-  Data = flush_packets(<<Buffer/binary, Packet/binary>>),  
+handle_info({Socket, {data, Data}}, #reader{socket = Socket} = Reader) ->
   {noreply, handle_ts(Data, Reader)};
 
-
-handle_info({Socket, {data, Data}}, #reader{socket = Socket, buffer = Buffer} = Reader) when size(Buffer) == 0 ->
-  {noreply, handle_ts(Data, Reader)};
-
-handle_info({Socket, {data, Data}}, #reader{socket = Socket, buffer = Buffer} = Reader) ->
-  {noreply, handle_ts(<<Buffer/binary, Data/binary>>, Reader)};
-
-handle_info(flush_errors, #reader{error_count = 0} = Reader) -> 
-  {noreply, Reader#reader{error_count = 0}};
-
-handle_info(flush_errors, #reader{error_count = ErrorCount, desync_count = DesyncCount, name = Name, port = Port} = Reader) ->
-  error_logger:info_msg("~p ~p error_count: ~p, desync_count: ~p", [Name, Port, ErrorCount, DesyncCount]),
-  {noreply, Reader#reader{error_count = 0, desync_count = 0}};
-
+handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = Reader) ->
+  case port_control(Socket, ?CMD_ERRORS, <<>>) of
+    <<0:32>> -> ok;
+    <<Count:32/little>> -> error_logger:info_msg("~p ~p error_count: ~p", [Name, Port, Count])
+  end,
+  {noreply, Reader};
 
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
   {noreply, State}.
 
-
-flush_packets(Buffer) when size(Buffer) > 12000 ->
-  Buffer;
-
-flush_packets(Buffer) ->
-  receive
-    {udp, _Socket, _IP, _InPortNo, Packet} -> flush_packets(<<Buffer/binary, Packet/binary>>)
-  after
-    0 -> Buffer
-  end.  
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any
@@ -195,53 +168,8 @@ code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 
-get_counter(#reader{counters = Counters}, Pid) ->
-  hipe_bifs:bytearray_sub(Counters, Pid).
-  
-set_counter(#reader{counters = Counters} = Reader, Pid, Counter) ->
-  hipe_bifs:bytearray_update(Counters, Pid, Counter),
-  Reader.
-  
 
-
-handle_ts(Packet, #reader{} = Reader) ->
-  sync_packet(Packet, Reader).
-
-sync_packet(<<16#47, _:187/binary, 16#47, _:187/binary, 16#47, _/binary>> = Packet, #reader{error_count = ErrorCount} = Reader) ->
-  {Count, Errors, Reader1} = verify_ts(Packet, Reader, 0, []),
-  % case Errors of
-  %   [] -> ok;
-  %   _ -> error_logger:error_msg("Errors: ~p", [Errors])
-  % end,
-  {Packet1, More} = erlang:split_binary(Packet, Count*188),
-  send_packet(Packet1, Reader1#reader{buffer = More, error_count = ErrorCount + length(Errors)});
-  
-sync_packet(<<_, Packet/binary>> = AllPacket, #reader{desync_count = DesyncCount} = Reader) when size(AllPacket) > 377 ->
-  sync_packet(Packet, Reader#reader{desync_count = DesyncCount + 1});
-
-sync_packet(Packet, #reader{} = Reader) ->
-  Reader#reader{buffer = Packet}.
-  
-
-  
-verify_ts(<<16#47, _TEI:1, _Start:1, _:1, Pid:13, _Opt:4, Counter:4, _:184/binary, Rest/binary>>, Reader, Count, Errors) ->
-  WaitFor = (Counter - 1 + 16) rem 16,
-  case get_counter(Reader, Pid) of
-    WaitFor ->
-      verify_ts(Rest, set_counter(Reader, Pid, Counter), Count + 1, Errors);
-    16#FF ->
-      verify_ts(Rest, set_counter(Reader, Pid, Counter), Count + 1, Errors);
-    Else ->
-      verify_ts(Rest, set_counter(Reader, Pid, Counter), Count + 1, [{ts_counter,Pid,Else,Counter}|Errors])
-  end;
-    
-verify_ts(_Rest, Reader, Count, Errors) ->
-  {Count, Errors, Reader}.
-
-
-  
-
-send_packet(Packet, #reader{clients = Clients} = Reader) ->
+handle_ts(Packet, #reader{clients = Clients} = Reader) ->
   [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
   Reader.
 

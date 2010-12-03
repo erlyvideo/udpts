@@ -12,6 +12,7 @@
 const int MPEGTS_SIZE = 188;
 const int BUFFER_SIZE = 12000;
 const int LIMIT_SIZE = 8000;
+#define PID_COUNT 8192
 
 typedef struct {
   ErlDrvPort port;
@@ -19,11 +20,15 @@ typedef struct {
   char *buf;
   ssize_t size;
   ssize_t len;
+  uint8_t counters[PID_COUNT];
+  uint32_t error_count;
 } Udpts;
 
 static ErlDrvData udpts_drv_start(ErlDrvPort port, char *buff)
 {
     Udpts* d = (Udpts *)driver_alloc(sizeof(Udpts));
+    bzero(d, sizeof(Udpts));
+    memset(d->counters, 0xFF, PID_COUNT);
     d->port = port;
     set_port_control_flags(port, PORT_CONTROL_FLAG_BINARY);
     d->size = BUFFER_SIZE;
@@ -75,6 +80,11 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
       memcpy(*rbuf, "ok", 2);
       return 2;
     }
+    case 2: {
+      memcpy(*rbuf, &d->error_count, 4);
+      d->error_count = 0;
+      return 4;
+    }
     break;
     default:
     return 0;
@@ -83,14 +93,44 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
 }
 
 
+typedef union TSHeader {
+	struct {
+		uint32_t sync : 8;
+		uint32_t pid : 13;
+		uint32_t transportPriority : 1;
+		uint32_t payloadUnitStartIndicator : 1;
+		uint32_t transportErrorIndicator : 1;
+		uint32_t counter : 4;
+		uint32_t hasPayload : 1;
+		uint32_t hasAdaptationField : 1;
+		uint32_t transportScramblingControl : 2;
+	} data;
+	uint8_t raw[4];
+} TSHeader;
+
+
 static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
 {
   Udpts* d = (Udpts*) handle;
   struct sockaddr_in peer;
   socklen_t peer_len;
   ssize_t s;
+  uint8_t *packet;
   
   s = recvfrom(d->socket, d->buf + d->len, d->size - d->len, 0, (struct sockaddr *)&peer, &peer_len);
+  packet = d->buf + d->len;
+  if(packet[0] == 0x47) {
+    TSHeader *header = d->buf + d->len;
+    // uint16_t pid = packet[1] & 0x1F << 8 || packet[2];
+    // uint8_t counter = packet[3] & 0x0F;
+    uint16_t pid = header->data.pid;
+    uint8_t counter = header->data.counter;
+    fprintf(stderr, "Pid: %5d %2d\r\n", pid, counter);
+    if(d->counters[pid] != 0xFF && d->counters[pid] != counter) {
+      d->error_count++;
+    }
+    d->counters[pid] = (counter + 1) % 0xF; 
+  }
   // fprintf(stderr, "Select: %lu\r\n", s);
   d->len += s;
   if(d->len > LIMIT_SIZE) {
