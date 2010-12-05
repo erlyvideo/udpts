@@ -11,7 +11,7 @@
 
 const int MPEGTS_SIZE = 188;
 const int BUFFER_SIZE = 12000;
-const int LIMIT_SIZE = 8000;
+const int LIMIT_SIZE = 1300;
 #define PID_COUNT 8192
 
 typedef struct {
@@ -93,20 +93,6 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
 }
 
 
-typedef union TSHeader {
-	struct {
-		uint32_t sync : 8;
-		uint32_t pid : 13;
-		uint32_t transportPriority : 1;
-		uint32_t payloadUnitStartIndicator : 1;
-		uint32_t transportErrorIndicator : 1;
-		uint32_t counter : 4;
-		uint32_t hasPayload : 1;
-		uint32_t hasAdaptationField : 1;
-		uint32_t transportScramblingControl : 2;
-	} data;
-	uint8_t raw[4];
-} TSHeader;
 
 
 static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
@@ -118,18 +104,18 @@ static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
   uint8_t *packet;
   
   s = recvfrom(d->socket, d->buf + d->len, d->size - d->len, 0, (struct sockaddr *)&peer, &peer_len);
-  packet = d->buf + d->len;
-  if(packet[0] == 0x47) {
-    TSHeader *header = d->buf + d->len;
-    // uint16_t pid = packet[1] & 0x1F << 8 || packet[2];
-    // uint8_t counter = packet[3] & 0x0F;
-    uint16_t pid = header->data.pid;
-    uint8_t counter = header->data.counter;
-    fprintf(stderr, "Pid: %5d %2d\r\n", pid, counter);
-    if(d->counters[pid] != 0xFF && d->counters[pid] != counter) {
-      d->error_count++;
+  for(packet = d->buf + d->len; packet < d->buf + d->len + s; packet += 188) {
+    if(packet[0] == 0x47) {
+      uint16_t pid = packet[1] & 0x1F << 8 | packet[2];
+      uint8_t counter = packet[3] & 0x0F;
+      // fprintf(stderr, "%d,%d,%d,%d:  %5d %2d\r\n", packet[0], packet[1], packet[2], packet[3], pid, counter);
+      // fprintf(stderr, "Pid: %5d %2d\r\n", pid, counter);
+      if(d->counters[pid] != 0xFF && d->counters[pid] != counter) {
+        // fprintf(stderr, "Pid: %5d %2d %2d\r\n", pid, d->counters[pid], counter);
+        d->error_count++;
+      }
+      d->counters[pid] = (counter + 1) % 0x10; 
     }
-    d->counters[pid] = (counter + 1) % 0xF; 
   }
   // fprintf(stderr, "Select: %lu\r\n", s);
   d->len += s;
