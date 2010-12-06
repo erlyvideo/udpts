@@ -24,7 +24,6 @@ fill_stream_info(#stream{pid = Pid} = Stream) ->
 
 processes_html() ->
   Streams = lists:map(fun fill_stream_info/1, ets:tab2list(udpts_streams)),
-  ?D({"ZZ:", Streams}),
   [begin
     <<"<tr><td>", (list_to_binary(Name))/binary, "</td><td>", (i2b(Clients))/binary, "</td><td>",
     (i2b(Memory))/binary, "</td><td>",(i2b(Messages))/binary ,"</td></tr>">>

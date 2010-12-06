@@ -29,7 +29,7 @@ start_link(Port, Name, Options) ->
 
 subscribe(Name, Socket) ->
   case ets:lookup(udpts_streams, Name) of
-    [{Name,Pid}] ->
+    [#stream{name = Name, pid = Pid}] ->
       erlang:monitor(process, Pid),
       gen_server:call(Pid, {subscribe, self(), Socket}, 10000);
     [] -> 
