@@ -59,6 +59,7 @@ set_socket(HTTP, Socket) ->
 
 
 init([]) ->
+  erlang:process_flag(trap_exit, true),
   {ok, #state{}}.
 
 %%-------------------------------------------------------------------------
@@ -109,6 +110,13 @@ handle_info({http, Socket, {http_request, 'GET', {abs_path, Path}, _Version}}, S
     "/stream/"++Stream ->
       inet:setopts(Socket, [{active,once}]),
       {noreply, State#state{name = Stream}};
+    "/favicon.ico" ->
+      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\n\r\nNot found\r\n"),
+      {stop, normal, State};
+    "/stats" ->
+      gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\n\r\n"),
+      gen_tcp:send(Socket, udpts_stats:html()),
+      {stop, normal, State};
     _ ->
       {stop, {unhandled_path, Path}, State}
   end;
@@ -118,7 +126,7 @@ handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, State) ->
   {noreply, State};
 
 handle_info({http, Socket, http_eoh}, #state{name = Name} = State) ->
-  {ok, {Addr,Port}} = inet:peername(Socket),
+  {ok, {Addr,_Port}} = inet:peername(Socket),
   case udpts_reader:subscribe(Name, Socket) of
     {ok, Pid} ->
       erlang:monitor(process, Pid),

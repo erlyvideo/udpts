@@ -84,7 +84,7 @@ init([http_worker_sup]) ->
 
 
 init([]) ->
-  udpts_streams = ets:new(udpts_streams,[set,public,named_table]),
+  udpts_streams = ets:new(udpts_streams,[set,public,named_table,{keypos, #stream.name}]),
   
   Supervisors = [
     ?SUPERVISOR_LINK(http_worker_sup)

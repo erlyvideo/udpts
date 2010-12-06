@@ -66,7 +66,7 @@ init([Port, Name, Options]) ->
       
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
-  ets:insert(udpts_streams, {Name, self()}),
+  ets:insert(udpts_streams, #stream{name = Name, pid = self()}),
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   {ok, #reader{socket = Socket, port = Port, name = Name}}.
 
@@ -96,9 +96,10 @@ init_driver(Port) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_call({subscribe, Client, Socket}, _From, #reader{clients = Clients} = Reader) ->
+handle_call({subscribe, Client, Socket}, _From, #reader{name = Name, clients = Clients} = Reader) ->
   erlang:monitor(process, Client),
   gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
+  ets:update_counter(udpts_streams, Name, {#stream.clients_count, 1}),
   {reply, {ok, self()}, Reader#reader{clients = [{Client,Socket}|Clients]}};
   
 handle_call(Request, _From, State) ->
@@ -127,7 +128,8 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({'DOWN', _, process, Client, _Reason}, #reader{clients = Clients} = Reader) ->
+handle_info({'DOWN', _, process, Client, _Reason}, #reader{name = Name, clients = Clients} = Reader) ->
+  ets:update_counter(udpts_streams, Name, {#stream.clients_count, -1}),
   {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
 
 
