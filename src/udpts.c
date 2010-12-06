@@ -6,7 +6,8 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <sys/types.h>
-
+#include <fcntl.h>
+#include <assert.h>
 
 
 const int MPEGTS_SIZE = 188;
@@ -17,7 +18,7 @@ const int LIMIT_SIZE = 1300;
 typedef struct {
   ErlDrvPort port;
   int socket;
-  char *buf;
+  uint8_t *buf;
   ssize_t size;
   ssize_t len;
   uint8_t counters[PID_COUNT];
@@ -60,6 +61,7 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
     case 1: {
       int sock;
       int port;
+      int flags;
       struct sockaddr_in si;
       port = atoi(buf);
       // fprintf(stderr, "Connecting to port %d\r\n", port);
@@ -76,6 +78,9 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
         // return 5;
       }
       d->socket = sock;
+      flags = fcntl(sock, F_GETFL);
+      assert(flags >= 0);
+      assert(!fcntl(sock, F_SETFL, flags | O_NONBLOCK));
       driver_select(d->port, (ErlDrvEvent)sock, DO_READ, 1);
       memcpy(*rbuf, "ok", 2);
       return 2;
@@ -93,18 +98,11 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
 }
 
 
-
-
-static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
+static void check_errors(Udpts *d) 
 {
-  Udpts* d = (Udpts*) handle;
-  struct sockaddr_in peer;
-  socklen_t peer_len;
-  ssize_t s;
   uint8_t *packet;
-  
-  s = recvfrom(d->socket, d->buf + d->len, d->size - d->len, 0, (struct sockaddr *)&peer, &peer_len);
-  for(packet = d->buf + d->len; packet < d->buf + d->len + s; packet += 188) {
+  assert(d->len % 188 == 0);
+  for(packet = d->buf; packet < d->buf + d->len; packet += 188) {
     if(packet[0] == 0x47) {
       uint16_t pid = packet[1] & 0x1F << 8 | packet[2];
       uint8_t counter = packet[3] & 0x0F;
@@ -117,12 +115,28 @@ static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
       d->counters[pid] = (counter + 1) % 0x10; 
     }
   }
-  // fprintf(stderr, "Select: %lu\r\n", s);
-  d->len += s;
-  if(d->len > LIMIT_SIZE) {
-    driver_output(d->port, d->buf, d->len);
-    d->len = 0;
+}
+
+static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
+{
+  Udpts* d = (Udpts*) handle;
+  struct sockaddr_in peer;
+  socklen_t peer_len;
+  ssize_t s;
+  uint8_t *packet;
+  
+  while((s = recvfrom(d->socket, d->buf + d->len, d->size - d->len, 0, (struct sockaddr *)&peer, &peer_len)) > 0) {
+    d->len += s;
+    if(d->len > LIMIT_SIZE) {
+      check_errors(d);
+      driver_output(d->port, d->buf, d->len);
+      d->len = 0;
+    }
   }
+  if(errno != EAGAIN) {
+    driver_failure_posix(d->port, errno);    
+  }
+  
 }
 
 

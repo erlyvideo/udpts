@@ -76,7 +76,7 @@ init_driver(Port) ->
   case erl_ddll:load_driver(code:lib_dir(udpts,ebin), udpts_drv) of
   	ok -> ok;
   	{error, already_loaded} -> ok;
-  	_ -> exit({error, could_not_load_driver})
+  	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})
   end,
   Socket = open_port({spawn, udpts_drv}, [binary]),
   <<"ok">> = port_control(Socket, ?CMD_OPEN, list_to_binary(integer_to_list(Port))),
@@ -136,9 +136,13 @@ handle_info({Socket, {data, Data}}, #reader{socket = Socket} = Reader) ->
 
 handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = Reader) ->
   case port_control(Socket, ?CMD_ERRORS, <<>>) of
+    % <<0:32>> -> error_logger:info_msg("~p no errors", [Name]), ok;
     <<0:32>> -> ok;
     <<Count:32/little>> -> error_logger:info_msg("~p ~p error_count: ~p", [Name, Port, Count])
   end,
+  {noreply, Reader};
+
+handle_info({inet_reply,_Socket,ok}, Reader) ->
   {noreply, Reader};
 
 handle_info(_Info, State) ->
@@ -170,7 +174,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 handle_ts(Packet, #reader{clients = Clients} = Reader) ->
-  [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
+  [port_command(Socket, Packet) || {_Pid,Socket} <- Clients],
   Reader.
 
 
