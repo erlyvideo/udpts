@@ -41,7 +41,9 @@ static ErlDrvData udpts_drv_start(ErlDrvPort port, char *buff)
 
 static void udpts_drv_stop(ErlDrvData handle)
 {
-    driver_free((char*)handle);
+  Udpts* d = (Udpts *)handle;
+  driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 0);
+  driver_free((char*)handle);
 }
 
 
