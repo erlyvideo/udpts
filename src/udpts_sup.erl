@@ -87,7 +87,8 @@ init([]) ->
   udpts_streams = ets:new(udpts_streams,[set,public,named_table,{keypos, #stream.name}]),
   
   Supervisors = [
-    ?SUPERVISOR_LINK(http_worker_sup)
+    ?SUPERVISOR_LINK(http_worker_sup),
+    ?NAMED_SERVER(ems_network_lag_monitor_sup,ems_network_lag_monitor,[])
   ],
   
   {ok, {{one_for_one, 100, 5}, Supervisors}}.

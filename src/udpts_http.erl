@@ -127,6 +127,7 @@ handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, State) ->
 
 handle_info({http, Socket, http_eoh}, #state{name = Name} = State) ->
   {ok, {Addr,_Port}} = inet:peername(Socket),
+  ems_network_lag_monitor:watch(self()),
   case udpts_reader:subscribe(Name, Socket) of
     {ok, Pid} ->
       erlang:monitor(process, Pid),
@@ -144,6 +145,10 @@ handle_info({tcp_closed, _Socket}, State) ->
 
 handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
+  
+handle_info(Bin, #state{socket = Socket} = Server) when is_binary(Bin) ->
+  gen_tcp:send(Socket, Bin),
+  {noreply, Server};
 
 handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.
