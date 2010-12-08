@@ -176,10 +176,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 handle_ts(Packet, #reader{clients = Clients} = Reader) ->
-  process_flag(priority, high),
-  % [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
-  [Pid ! Packet || {Pid,_Socket} <- Clients],
-  process_flag(priority, normal),
+  [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
   Reader.
 
 
