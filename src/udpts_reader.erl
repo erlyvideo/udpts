@@ -176,7 +176,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 handle_ts(Packet, #reader{clients = Clients} = Reader) ->
-  [port_command(Socket, Packet) || {_Pid,Socket} <- Clients],
+  [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
   Reader.
 
 
