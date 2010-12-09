@@ -75,7 +75,7 @@ init([]) ->
 %% @private
 %%-------------------------------------------------------------------------
 handle_call({set_socket, Socket}, _From, #state{} = State) ->
-  inet:setopts(Socket, [{active,once},{packet,http}]),
+  inet:setopts(Socket, [{active,once},{packet,http},{sndbuf,4194304}]), % 64 seconds of 512 kbit/s
   {reply, ok, State#state{socket = Socket}};
   
   
@@ -144,6 +144,9 @@ handle_info({tcp_closed, _Socket}, State) ->
 
 handle_info({'DOWN', _, process, _Client, _Reason}, Server) ->
   {stop, normal, Server};
+
+handle_info(stop, State) ->
+  {stop, normal, State};
 
 handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.

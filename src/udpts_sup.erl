@@ -90,4 +90,4 @@ init([]) ->
     ?SUPERVISOR_LINK(http_worker_sup)
   ],
   
-  {ok, {{one_for_one, 100, 5}, Supervisors}}.
+  {ok, {{one_for_one, 2, 2}, Supervisors}}.

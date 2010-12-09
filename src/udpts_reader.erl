@@ -40,7 +40,12 @@ subscribe(Name, Socket) ->
   socket,
   name,
   port,
-  clients = []
+  clients
+}).
+
+-record(udp_client, {
+  pid,
+  socket
 }).
 
 
@@ -68,7 +73,8 @@ init([Port, Name, Options]) ->
   erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, #stream{name = Name, pid = self()}),
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
-  {ok, #reader{socket = Socket, port = Port, name = Name}}.
+  Clients = ets:new(clients, [private,{keypos,#udp_client.pid}]),
+  {ok, #reader{socket = Socket, port = Port, name = Name, clients = Clients}}.
 
 
 init_driver(Port) ->
@@ -100,7 +106,8 @@ handle_call({subscribe, Client, Socket}, _From, #reader{name = Name, clients = C
   erlang:monitor(process, Client),
   gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
   ets:update_counter(udpts_streams, Name, {#stream.clients_count, 1}),
-  {reply, {ok, self()}, Reader#reader{clients = [{Client,Socket}|Clients]}};
+  ets:insert(Clients, #udp_client{pid = Client, socket = Socket}),
+  {reply, {ok, self()}, Reader};
   
 handle_call(Request, _From, State) ->
   {stop, {unknown_call, Request}, State}.
@@ -130,7 +137,8 @@ handle_cast(_Msg, State) ->
 %%-------------------------------------------------------------------------
 handle_info({'DOWN', _, process, Client, _Reason}, #reader{name = Name, clients = Clients} = Reader) ->
   ets:update_counter(udpts_streams, Name, {#stream.clients_count, -1}),
-  {noreply, Reader#reader{clients = lists:keydelete(Client, 1, Clients)}};
+  ets:delete(Clients, Client),
+  {noreply, Reader};
 
 
 handle_info({Socket, {data, Data}}, #reader{socket = Socket} = Reader) ->
@@ -149,7 +157,7 @@ handle_info({inet_reply,_Socket,ok}, Reader) ->
 
 handle_info(_Info, State) ->
   ?D({unknown_message, _Info}),
-  {noreply, State}.
+  {stop, {unknown_message, _Info}, State}.
 
 
 %%-------------------------------------------------------------------------
@@ -176,7 +184,18 @@ code_change(_OldVsn, State, _Extra) ->
 
 
 handle_ts(Packet, #reader{clients = Clients} = Reader) ->
-  [gen_tcp:send(Socket, Packet) || {_Pid,Socket} <- Clients],
+  Removing = ets:foldl(fun(#udp_client{pid = Pid, socket = Socket}, Acc) ->
+    case (catch port_command(Socket, Packet,[nosuspend])) of
+      true -> Acc;
+      {'EXIT', _} -> [Pid|Acc];
+      false -> [Pid|Acc]
+    end
+  end, [], Clients),
+  case Removing of
+    [] -> ok;
+    _ -> ?D({removing,Removing})
+  end,
+  [Pid ! stop || Pid <- Removing],
   Reader.
 
 

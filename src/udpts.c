@@ -43,6 +43,7 @@ static void udpts_drv_stop(ErlDrvData handle)
 {
   Udpts* d = (Udpts *)handle;
   driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 0);
+  close(d->socket);
   driver_free((char*)handle);
 }
 
@@ -80,10 +81,10 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
         // return 5;
       }
       d->socket = sock;
-      flags = fcntl(sock, F_GETFL);
+      flags = fcntl(d->socket, F_GETFL);
       assert(flags >= 0);
-      assert(!fcntl(sock, F_SETFL, flags | O_NONBLOCK));
-      driver_select(d->port, (ErlDrvEvent)sock, DO_READ, 1);
+      assert(!fcntl(d->socket, F_SETFL, flags | O_NONBLOCK));
+      driver_select(d->port, (ErlDrvEvent)d->socket, DO_READ, 1);
       memcpy(*rbuf, "ok", 2);
       return 2;
     }
