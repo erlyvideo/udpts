@@ -152,7 +152,7 @@ handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = R
   end,
   {noreply, Reader};
 
-handle_info({inet_reply,_Socket,ok}, Reader) ->
+handle_info({inet_reply, _Client, _Reply}, Reader) ->
   {noreply, Reader};
 
 handle_info(_Info, State) ->
