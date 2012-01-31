@@ -40,6 +40,7 @@ subscribe(Name, Socket) ->
   socket,
   name,
   port,
+  multicast,
   clients
 }).
 
@@ -66,7 +67,7 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = init_driver(Port),
+  {ok, Socket} = init_driver(Port, Options),
   % {ok, Socket} = init_socket(Socket),
       
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
@@ -77,7 +78,7 @@ init([Port, Name, Options]) ->
   {ok, #reader{socket = Socket, port = Port, name = Name, clients = Clients}}.
 
 
-init_driver(Port) ->
+init_driver(Port, Options) ->
   io:format("Load from ~p~n", [code:lib_dir(udpts,ebin)]),
   case erl_ddll:load_driver(code:lib_dir(udpts,ebin), udpts_drv) of
   	ok -> ok;
@@ -85,7 +86,13 @@ init_driver(Port) ->
   	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})
   end,
   Socket = open_port({spawn, udpts_drv}, [binary]),
-  <<"ok">> = port_control(Socket, ?CMD_OPEN, list_to_binary(integer_to_list(Port))),
+  Multicast = case proplists:get_value(mc, Options) of
+    undefined -> <<>>;
+    MC -> 
+      {ok, {I1,I2,I3,I4}} = inet_parse:address(MC),
+      <<I1, I2, I3, I4>>
+  end,
+  <<"ok">> = port_control(Socket, ?CMD_OPEN, <<Port:16, Multicast/binary>>),
   {ok, Socket}.
 
 
@@ -142,6 +149,7 @@ handle_info({'DOWN', _, process, Client, _Reason}, #reader{name = Name, clients 
 
 
 handle_info({Socket, {data, Data}}, #reader{socket = Socket} = Reader) ->
+  case get(data_seen) of undefined -> error_logger:info_msg("First data for ~s~n", [Reader#reader.name]), put(data_seen, true); _ -> ok end,
   {noreply, handle_ts(Data, Reader)};
 
 handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = Reader) ->

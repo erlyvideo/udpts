@@ -41,7 +41,7 @@
 %%--------------------------------------------------------------------
 -spec start_link() -> {'error',_} | {'ok',pid()}.
 start_link() ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 
 start_http_listener(Port) ->
@@ -63,10 +63,12 @@ start_http_worker() ->
   
 
 reader_name(Port) when is_integer(Port) ->
-  "udpts_reader:"++integer_to_list(Port).
+  "udpts_reader:"++integer_to_list(Port);
+reader_name(Name) when is_list(Name) ->
+  "udpts_reader:"++Name.
 
 start_reader(Port, Name, Options) ->
-  Id = reader_name(Port),
+  Id = reader_name(Name),
   Reader = 
   { 
     Id,

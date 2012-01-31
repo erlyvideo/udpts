@@ -63,16 +63,17 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
   switch(command) {
     case 1: {
       int sock;
-      int port;
       int flags;
       struct sockaddr_in si;
-      port = atoi(buf);
+      uint16_t port;
+      if(len < 2) return 0;
+      memcpy(&port, buf, 2);
       // fprintf(stderr, "Connecting to port %d\r\n", port);
       sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
       
       bzero(&si, sizeof(si));
       si.sin_family = AF_INET;
-      si.sin_port = htons(port);
+      si.sin_port = port;
       si.sin_addr.s_addr = htonl(INADDR_ANY);
       if(bind(sock, (struct sockaddr *)&si, sizeof(si)) == -1) {
         driver_failure_posix(d->port, errno);
@@ -80,6 +81,19 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
         // memcpy(*rbuf, "error", 5);
         // return 5;
       }
+      
+      if(len >= 6) {
+        struct ip_mreq mreq;
+        memcpy(&mreq.imr_multiaddr.s_addr, buf+2, 4);
+        mreq.imr_interface.s_addr = htonl(INADDR_ANY);
+
+        if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq)) < 0) {
+          perror("multicast join error\n");
+          driver_failure_posix(d->port, errno);
+          return 0;
+        }
+      }
+
       d->socket = sock;
       flags = fcntl(d->socket, F_GETFL);
       assert(flags >= 0);
@@ -162,7 +176,7 @@ ErlDrvEntry udpts_driver_entry = {
     NULL,                             /* event */
     ERL_DRV_EXTENDED_MARKER,          /* ERL_DRV_EXTENDED_MARKER */
     ERL_DRV_EXTENDED_MAJOR_VERSION,   /* ERL_DRV_EXTENDED_MAJOR_VERSION */
-    ERL_DRV_EXTENDED_MAJOR_VERSION,   /* ERL_DRV_EXTENDED_MINOR_VERSION */
+    ERL_DRV_EXTENDED_MINOR_VERSION,   /* ERL_DRV_EXTENDED_MINOR_VERSION */
     ERL_DRV_FLAG_USE_PORT_LOCKING,     /* ERL_DRV_FLAGs */
     NULL,     /* void *handle2 */
     NULL,     /* process_exit */
