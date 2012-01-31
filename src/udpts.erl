@@ -30,12 +30,14 @@ start() ->
   end,
   application:start(udpts),
   Options = [{error_flush_timeout, proplists:get_value(error_flush_timeout, Config, 60000)}],
+  io:format("Listeners: ~p~n", [proplists:get_value(udp_listeners, Config)]),
   lists:foreach(fun
     ({Port,Name}) ->
       udpts:start_reader(Port, Name, Options),
       error_logger:info_msg("Start UDP reader ~s on port ~p", [Name, Port]);
     ({Multicast,Port,Name}) ->
-      udpts:start_reader(Port, Name, [{mc,Multicast},Options]),
+      io:format("MC: ~s:~p ~s~n", [Multicast,Port,Name]),
+      udpts:start_reader(Port, Name, [{mc,Multicast}|Options]),
       error_logger:info_msg("Start multicast UDP reader ~s on group ~s:~p", [Name, Multicast, Port])
   end, proplists:get_value(udp_listeners, Config, [])),
   HTTPPort = proplists:get_value(http_port, Config),

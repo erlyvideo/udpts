@@ -35,6 +35,7 @@ static ErlDrvData udpts_drv_start(ErlDrvPort port, char *buff)
     d->size = BUFFER_SIZE;
     d->buf = (char *)malloc(d->size);
     d->len = 0;
+    d->socket = -1;
     return (ErlDrvData)d;
 }
 
@@ -76,6 +77,7 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
       si.sin_port = port;
       si.sin_addr.s_addr = htonl(INADDR_ANY);
       if(bind(sock, (struct sockaddr *)&si, sizeof(si)) == -1) {
+        fprintf(stderr, "Invalid bind to %d\r\n", ntohs(port));
         driver_failure_posix(d->port, errno);
         return 0;
         // memcpy(*rbuf, "error", 5);

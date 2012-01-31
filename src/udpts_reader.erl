@@ -79,8 +79,12 @@ init([Port, Name, Options]) ->
 
 
 init_driver(Port, Options) ->
-  io:format("Load from ~p~n", [code:lib_dir(udpts,ebin)]),
-  case erl_ddll:load_driver(code:lib_dir(udpts,ebin), udpts_drv) of
+  Path = case code:lib_dir(udpts,ebin) of
+    {error, _} -> "ebin";
+    LibDir -> LibDir
+  end,
+  io:format("Load from ~p~n", [Path]),
+  case erl_ddll:load_driver(Path, udpts_drv) of
   	ok -> ok;
   	{error, already_loaded} -> ok;
   	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})

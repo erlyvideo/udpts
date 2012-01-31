@@ -1,0 +1,11 @@
+#!/usr/bin/env escript
+%%! -smp enable +K true +A 8 
+
+main([]) ->
+  code:add_pathz("ebin"),
+  udpts:start(),
+  error_logger:info_msg("Working"),
+  io:get_line(">> ~n"),
+  error_logger:info_msg("Exiting"),
+  ok.
+
