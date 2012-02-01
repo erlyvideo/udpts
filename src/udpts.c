@@ -76,6 +76,9 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
       si.sin_family = AF_INET;
       si.sin_port = port;
       si.sin_addr.s_addr = htonl(INADDR_ANY);
+      if(len >= 6) {
+        memcpy(&si.sin_addr.s_addr, buf+2, 4);
+      }
       if(bind(sock, (struct sockaddr *)&si, sizeof(si)) == -1) {
         fprintf(stderr, "Invalid bind to %d\r\n", ntohs(port));
         driver_failure_posix(d->port, errno);
