@@ -72,7 +72,7 @@ init([Port, Name, Options]) ->
       
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
-  ets:insert(udpts_streams, #stream{name = Name, pid = self(), port = Port, multicast = proplists:get_value(mc, Options, "")}),
+  ets:insert(udpts_streams, #stream{name = Name, pid = self(), port = Port, multicast = proplists:get_value(mc, Options, ""), last_packet_at = {0,0,0}}),
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   Clients = ets:new(clients, [private,{keypos,#udp_client.pid}]),
   {ok, #reader{socket = Socket, port = Port, name = Name, clients = Clients}}.
@@ -116,7 +116,7 @@ init_driver(Port, Options) ->
 handle_call({subscribe, Client, Socket}, _From, #reader{name = Name, clients = Clients} = Reader) ->
   erlang:monitor(process, Client),
   gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
-  ets:update_counter(udpts_streams, Name, [{#stream.clients_count, 1},#stream.last_packet_at, {0,0,0}]),
+  ets:update_counter(udpts_streams, Name, {#stream.clients_count, 1}),
   ets:insert(Clients, #udp_client{pid = Client, socket = Socket}),
   {reply, {ok, self()}, Reader};
   
