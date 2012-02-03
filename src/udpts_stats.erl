@@ -26,7 +26,7 @@ processes_html() ->
     "<td>", Multicast,"</td>"
     "<td>", i2b(Port),"</td>"
     "<td>", i2b(Clients), "</td>",
-    "<td>", i2b(timer:now_diff(LastPacketAt, Now) div 1000000), "</td>",
+    "<td>", i2b(timer:now_diff(Now, LastPacketAt) div 1000000), "</td>",
     "<td>",i2b(Memory), "</td><td>",i2b(Messages) ,"</td>",
     "<td><button onclick=\"stopChannel('", Name ,"')\">Stop</button></td>",
     "</tr>"]
