@@ -138,7 +138,7 @@ handle_info({http, Socket, {http_header, _, _Key, _, _Value}}, State) ->
   inet:setopts(Socket, [{active,once}]),
   {noreply, State};
 
-handle_info({http, Socket, http_eoh}, #state{name = Name} = State) ->
+handle_info({http, Socket, http_eoh}, #state{name = Name} = State) when Name =/= undefined ->
   {ok, {Addr,_Port}} = inet:peername(Socket),
   case udpts_reader:subscribe(Name, Socket) of
     {ok, Pid} ->

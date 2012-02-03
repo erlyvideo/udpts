@@ -45,8 +45,14 @@ start() ->
   
   
 start_reader(Name, Port, Options) ->
-  error_logger:info_msg("Start UDP reader ~s on group ~s:~p", [Name, proplists:get_value(mc, Options, ""), Port]),
-  udpts_sup:start_reader(Port, Name, Options).
+  case ets:lookup(udpts_streams, Name) of
+    [] ->
+      error_logger:info_msg("Start UDP reader ~s on group ~s:~p", [Name, proplists:get_value(mc, Options, ""), Port]),
+      udpts_sup:start_reader(Port, Name, Options);
+    [_] ->
+      error_logger:error_msg("Cant add UDP reader ~s because it is already started", [Name]),
+      {error, duplicate}
+  end.    
 
 stop_reader(Name) ->
   error_logger:info_msg("Stop reader ~s", [Name]),
