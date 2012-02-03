@@ -105,7 +105,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %% @private
 %%-------------------------------------------------------------------------
-handle_info({http, Socket, {http_request, 'GET', {abs_path, Path}, _Version}}, State) ->
+handle_info({http, Socket, {http_request, _Method, {abs_path, Path}, _Version}}, State) ->
   case Path of
     "/stream/"++Stream ->
       inet:setopts(Socket, [{active,once}]),
@@ -113,7 +113,20 @@ handle_info({http, Socket, {http_request, 'GET', {abs_path, Path}, _Version}}, S
     "/favicon.ico" ->
       gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\n\r\nNot found\r\n"),
       {stop, normal, State};
-    "/stats" ->
+    "/api/"++Command ->  
+      try handle_api(Command) of
+        Reply0 ->
+          Reply = [Reply0, "\n"],
+          gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "++integer_to_list(iolist_size(Reply))++"\r\n\r\n"),
+          gen_tcp:send(Socket, Reply),
+          {stop, normal, State}
+      catch
+        Class:Error ->
+          gen_tcp:send(Socket, "HTTP/1.1 500 Server Error\r\n\r\n"),
+          gen_tcp:send(Socket, io_lib:format("~p:~p~n~p~n", [Class, Error, erlang:get_stacktrace()])),
+          {stop, {error, Error}, State}
+      end;
+    "/" ->
       gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\n\r\n"),
       gen_tcp:send(Socket, udpts_stats:html()),
       {stop, normal, State};
@@ -150,6 +163,18 @@ handle_info(stop, State) ->
 
 handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.
+
+
+handle_api("add_channel/"++Spec) ->
+  case string:tokens(Spec, "/") of
+    [Name, Port] -> udpts:start_reader(Name, list_to_integer(Port), []);
+    [Name, Multicast, Port] -> udpts:start_reader(Name, list_to_integer(Port), [{mc, Multicast}])
+  end,
+  "true";
+
+handle_api("remove_channel/"++Name) ->
+  udpts:stop_reader(Name),
+  "true".
 
 %%-------------------------------------------------------------------------
 %% @spec (Reason, State) -> any

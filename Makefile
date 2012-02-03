@@ -6,7 +6,7 @@ OS = $(shell uname -s)
 ifeq ("$(OS)", "Linux")
 LIBFLAGS := -shared -fpic -I /usr/lib/erlang/erts-5.9/include
 else
-LIBFLAGS := -arch x86_64 -pipe -bundle -undefined dynamic_lookup -I /usr/lib/erlang/erts-5.9/include
+LIBFLAGS := -arch x86_64 -pipe -bundle -undefined dynamic_lookup -I /usr/local/lib/erlang/erts-5.9/include
 endif  
 
 all: compile

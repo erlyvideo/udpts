@@ -14,7 +14,7 @@
 
 -export([init/1,start_link/0]).
 
--export([start_reader/3, start_http_listener/1, start_http_worker/0]).
+-export([start_reader/3, stop_reader/1, start_http_listener/1, start_http_worker/0]).
 -define(NAMED_SERVER(Id,M,A), {Id,                               % Id       = internal id
     {M,start_link,A},                  % StartFun = {M, F, A}
     temporary,                               % Restart  = permanent | transient | temporary
@@ -80,6 +80,10 @@ start_reader(Port, Name, Options) ->
   },
   supervisor:start_child(?MODULE, Reader).
 
+stop_reader(Name) ->
+  Id = reader_name(Name),
+  supervisor:terminate_child(?MODULE, Id),
+  supervisor:delete_child(?MODULE, Id).
 
 init([http_worker_sup]) ->
   {ok, {{simple_one_for_one, 100, 100}, [?SIMPLE_SERVER(udpts_http, [])]}};

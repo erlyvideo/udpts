@@ -1,0 +1,42 @@
+<html>
+	<head>
+		<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+		<style type='text/css'>td {border: 1px black solid;}</style>
+	</head>
+	<table>
+		<thead><tr><th>Stream</th><th>Clients</th><th>Memory</th><th>Messages</th><th>Delete</th></tr></thead>
+		<tbody>
+			<!-- PROCESSES -->
+		</tbody>
+	</table>
+	<form action="/" onsubmit="addChannel(); return false;">
+		<label for="name">Name:</label><input name="name" id="name" />
+		<label for="mc">Multicast:</label><input name="mc" id="mc" />
+		<label for="port">Port:</label><input name="port" id="port" />
+		<br>
+		<input type="submit">
+	</form>
+	
+	<script type="text/javascript">
+  	function addChannel() { 
+			if($('#port').val().length == 0 || $('#name').val().length == 0) {
+				return false;
+			}
+			var path = "/api/add_channel/"+$('#name').val()+'/';
+			if($('#mc').val().length > 0) {
+				path += $('#mc').val() + "/";
+			}
+			path += $('#port').val();
+			$.post(path, {}, function() { 
+				document.location = document.location;
+			});
+		}
+		
+		function stopChannel(chan) {
+			$.post("/api/remove_channel/"+chan, {}, function() {
+				document.location = document.location;
+			});
+		}
+  </script>
+
+</html>

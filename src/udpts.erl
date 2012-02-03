@@ -18,7 +18,7 @@
 % PLUGIN API
 -export([start/0, stop/0]).
 
--export([test/0, reload/0, start_reader/3]).
+-export([test/0, reload/0, start_reader/3, stop_reader/1]).
 
 start() ->
   Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
@@ -31,14 +31,12 @@ start() ->
   application:start(udpts),
   Options = [{error_flush_timeout, proplists:get_value(error_flush_timeout, Config, 60000)}],
   io:format("Listeners: ~p~n", [proplists:get_value(udp_listeners, Config)]),
+  
   lists:foreach(fun
     ({Port,Name}) ->
-      udpts:start_reader(Port, Name, Options),
-      error_logger:info_msg("Start UDP reader ~s on port ~p", [Name, Port]);
+      udpts:start_reader(Name, Port, Options);
     ({Multicast,Port,Name}) ->
-      io:format("MC: ~s:~p ~s~n", [Multicast,Port,Name]),
-      udpts:start_reader(Port, Name, [{mc,Multicast}|Options]),
-      error_logger:info_msg("Start multicast UDP reader ~s on group ~s:~p", [Name, Multicast, Port])
+      udpts:start_reader(Name, Port, [{mc,Multicast}|Options])
   end, proplists:get_value(udp_listeners, Config, [])),
   HTTPPort = proplists:get_value(http_port, Config),
   udpts_sup:start_http_listener(HTTPPort),
@@ -46,9 +44,13 @@ start() ->
   
   
   
-start_reader(Port, Name, Options) ->
+start_reader(Name, Port, Options) ->
+  error_logger:info_msg("Start UDP reader ~s on group ~s:~p", [Name, proplists:get_value(mc, Options, ""), Port]),
   udpts_sup:start_reader(Port, Name, Options).
 
+stop_reader(Name) ->
+  error_logger:info_msg("Stop reader ~s", [Name]),
+  udpts_sup:stop_reader(Name).
 
 test() ->
   ok.
