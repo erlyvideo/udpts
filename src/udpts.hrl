@@ -9,6 +9,8 @@
 -record(stream, {
   pid,
   name,
+  multicast,
+  port,
   clients_count = 0,
   memory,
   messages

@@ -72,7 +72,7 @@ init([Port, Name, Options]) ->
       
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
   erlang:process_flag(trap_exit, true),
-  ets:insert(udpts_streams, #stream{name = Name, pid = self()}),
+  ets:insert(udpts_streams, #stream{name = Name, pid = self(), port = Port, multicast = proplists:get_value(mc, Options, "")}),
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   Clients = ets:new(clients, [private,{keypos,#udp_client.pid}]),
   {ok, #reader{socket = Socket, port = Port, name = Name, clients = Clients}}.

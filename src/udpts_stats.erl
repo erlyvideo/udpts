@@ -20,8 +20,12 @@ fill_stream_info(#stream{pid = Pid} = Stream) ->
 processes_html() ->
   Streams = lists:map(fun fill_stream_info/1, ets:tab2list(udpts_streams)),
   [begin
-    ["<tr><td>", Name, "</td><td>", i2b(Clients), "</td><td>",
+    ["<tr>",
+    "<td>", Name, "</td>",
+    "<td>", Multicast,"</td>"
+    "<td>", i2b(Port),"</td>"
+    "<td>", i2b(Clients), "</td><td>",
     i2b(Memory), "</td><td>",i2b(Messages) ,"</td>",
     "<td><button onclick=\"stopChannel('", Name ,"')\">Stop</button></td>",
     "</tr>"]
-  end || #stream{name = Name, clients_count = Clients, memory = Memory, messages = Messages} <- Streams].
+  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, memory = Memory, messages = Messages} <- Streams].
