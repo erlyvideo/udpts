@@ -152,8 +152,9 @@ handle_info({'DOWN', _, process, Client, _Reason}, #reader{name = Name, clients 
   {noreply, Reader};
 
 
-handle_info({Socket, {data, Data}}, #reader{socket = Socket} = Reader) ->
+handle_info({Socket, {data, Data}}, #reader{socket = Socket, name = Name} = Reader) ->
   case get(data_seen) of undefined -> error_logger:info_msg("First data for ~s~n", [Reader#reader.name]), put(data_seen, true); _ -> ok end,
+  ets:update_element(udpts_streams, Name, {#stream.last_packet_at, os:timestamp()}),
   {noreply, handle_ts(Data, Reader)};
 
 handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = Reader) ->
