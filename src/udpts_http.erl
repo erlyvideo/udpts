@@ -165,6 +165,9 @@ handle_info(_Info, State) ->
   {stop, {unknown_message, _Info}, State}.
 
 
+handle_api("stats") ->
+  udpts_stats:json();
+
 handle_api("add_channel/"++Spec) ->
   case string:tokens(Spec, "/") of
     [Name, Port] -> udpts:start_reader(Name, list_to_integer(Port), []);

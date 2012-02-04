@@ -3,8 +3,18 @@
 		<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
 		<style type='text/css'>td {border: 1px black solid;}</style>
 	</head>
-	<table>
-		<thead><tr><th>Stream</th><th>Multicast</th><th>Port</th><th>Clients</th><th>Delta (sec)</th><th>Memory</th><th>Messages</th><th>Delete</th></tr></thead>
+	<table id="info">
+		<thead>
+			<tr>
+				<th field="name">Stream</th>
+				<th field="multicast">Multicast</th>
+				<th field="port">Port</th>
+				<th field="clients">Clients</th>
+				<th field="delay">Delay</th>
+				<th field="memory">Memory</th>
+				<th field="stop">Delete</th>
+			</tr>
+		</thead>
 		<tbody>
 			<!-- PROCESSES -->
 		</tbody>
@@ -14,7 +24,7 @@
 		<label for="mc">Multicast:</label><input name="mc" id="mc" />
 		<label for="port">Port:</label><input name="port" id="port" />
 		<br>
-		<input type="submit">
+		<input type="submit" value="Create">
 	</form>
 	
 	<script type="text/javascript">
@@ -28,15 +38,51 @@
 			}
 			path += $('#port').val();
 			$.post(path, {}, function() { 
-				document.location = document.location;
+				loadInfo();
 			});
 		}
 		
 		function stopChannel(chan) {
 			$.post("/api/remove_channel/"+chan, {}, function() {
-				document.location = document.location;
+				loadInfo();
 			});
 		}
+		
+		function loadInfo(callback) {
+			$.getJSON("/api/stats", function(data) {
+				var cols = $("#info thead th");
+				var fields = [];
+				for(j = 0; j < cols.length; j++) {
+					fields[j] = $(cols[j]).attr("field");
+				}
+				var i,j;
+				var tbody = "";
+				for(i = 0; i < data.length; i++) {
+					var tr = "<tr channel_name='"+data[i].name+"'>";
+					for(j = 0; j < fields.length; j++) {
+						if(fields[j] == "stop") {
+							tr += "<td><button onclick=\"stopChannel('" + data[i].name +"')\">Stop</button></td>";
+						} else {
+							tr += "<td>"+data[i][fields[j]]+"</td>";
+						}
+					}
+					tr += "</tr>";
+					tbody += tr;
+				}
+				$("#info tbody").html(tbody);
+				if(callback) callback(data);
+			});
+		}
+		
+		function periodicLoader() {
+			loadInfo(function() {
+				setTimeout(periodicLoader, 1000);
+			})
+		}
+		
+		$(function() {
+			periodicLoader();
+		})
   </script>
 
 </html>

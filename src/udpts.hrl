@@ -12,7 +12,5 @@
   multicast,
   port,
   last_packet_at,
-  clients_count = 0,
-  memory,
-  messages
+  clients_count = 0
 }).

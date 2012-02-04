@@ -2,7 +2,7 @@
 -author('Max Lapshin <max@maxidoors.ru>').
 -include("udpts.hrl").
 
--export([html/0, fill_stream_info/1]).
+-export([html/0, json/0]).
 
 
 html() ->
@@ -13,12 +13,7 @@ i2b(Num) when is_integer(Num) -> list_to_binary(integer_to_list(Num));
 i2b(T) -> list_to_binary(lists:flatten(io_lib:print("~p", [T]))).
 
 
-fill_stream_info(#stream{pid = Pid} = Stream) ->
-  [{memory,Memory},{message_queue_len,Messages}] = erlang:process_info(Pid, [memory,message_queue_len]),
-  Stream#stream{memory = Memory, messages = Messages}.
-
 processes_html() ->
-  Streams = lists:map(fun fill_stream_info/1, ets:tab2list(udpts_streams)),
   Now = os:timestamp(),
   [begin
     ["<tr>",
@@ -27,7 +22,29 @@ processes_html() ->
     "<td>", i2b(Port),"</td>"
     "<td>", i2b(Clients), "</td>",
     "<td>", i2b(timer:now_diff(Now, LastPacketAt) div 1000000), "</td>",
-    "<td>",i2b(Memory), "</td><td>",i2b(Messages) ,"</td>",
+    "<td>0</td><td>0</td>",
     "<td><button onclick=\"stopChannel('", Name ,"')\">Stop</button></td>",
     "</tr>"]
-  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, memory = Memory, messages = Messages, last_packet_at = LastPacketAt} <- Streams].
+  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, last_packet_at = LastPacketAt} <- ets:tab2list(udpts_streams)].
+
+json() ->
+  Now = os:timestamp(),
+  Streams1 = [begin
+    [{memory, Memory},{message_queue_len, Messages}] = process_info(Pid, [memory, message_queue_len]),
+    SortIndex = case inet_parse:address(Multicast) of
+      {ok, {I1,I2,I3,I4}} -> (I1 bsl 24 + I2 bsl 16 + I3 bsl 8 + I4) bsl 16 + Port;
+      _ -> Port
+    end,
+    [{name, list_to_binary(Name)}
+     ,{sort_index, SortIndex}
+     ,{multicast, list_to_binary(Multicast)}
+     ,{port, Port}
+     ,{clients, Clients}
+     ,{delay, timer:now_diff(Now, LastPacketAt) div 1000000}
+     ,{memory, Memory}
+     ,{message_queue_len, Messages}
+    ]
+  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, pid = Pid, last_packet_at = LastPacketAt} <- ets:tab2list(udpts_streams)],
+  Streams2 = lists:sort(fun(S1, S2) -> proplists:get_value(sort_index, S1) < proplists:get_value(sort_index, S2) end, Streams1),
+  
+  mochijson2:encode(Streams2).
