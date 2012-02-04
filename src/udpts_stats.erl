@@ -7,25 +7,11 @@
 
 html() ->
   {ok, Bin} = file:read_file("index.html"),
-  re:replace(Bin, "<!-- PROCESSES -->", processes_html(), [{return, binary}]).
+  Bin
 
 i2b(Num) when is_integer(Num) -> list_to_binary(integer_to_list(Num));
 i2b(T) -> list_to_binary(lists:flatten(io_lib:print("~p", [T]))).
 
-
-processes_html() ->
-  Now = os:timestamp(),
-  [begin
-    ["<tr>",
-    "<td>", Name, "</td>",
-    "<td>", Multicast,"</td>"
-    "<td>", i2b(Port),"</td>"
-    "<td>", i2b(Clients), "</td>",
-    "<td>", i2b(timer:now_diff(Now, LastPacketAt) div 1000000), "</td>",
-    "<td>0</td><td>0</td>",
-    "<td><button onclick=\"stopChannel('", Name ,"')\">Stop</button></td>",
-    "</tr>"]
-  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, last_packet_at = LastPacketAt} <- ets:tab2list(udpts_streams)].
 
 json() ->
   Now = os:timestamp(),
