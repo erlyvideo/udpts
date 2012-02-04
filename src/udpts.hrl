@@ -12,5 +12,8 @@
   multicast,
   port,
   last_packet_at,
-  clients_count = 0
+  clients_count = 0,
+  scrambled,
+  errors_count,
+  packets_count
 }).

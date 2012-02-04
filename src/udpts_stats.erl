@@ -26,8 +26,12 @@ json() ->
      ,{delay, timer:now_diff(Now, LastPacketAt) div 1000000}
      ,{memory, Memory}
      ,{message_queue_len, Messages}
+     ,{errors_count, Errors}
+     ,{packets_count, Packets}
+     ,{scrambled, Scrambled}
     ]
-  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, pid = Pid, last_packet_at = LastPacketAt} <- ets:tab2list(udpts_streams)],
+  end || #stream{name = Name, multicast = Multicast, port = Port, clients_count = Clients, pid = Pid, 
+         last_packet_at = LastPacketAt, errors_count = Errors, scrambled = Scrambled, packets_count = Packets} <- ets:tab2list(udpts_streams)],
   Streams2 = lists:sort(fun(S1, S2) -> proplists:get_value(sort_index, S1) < proplists:get_value(sort_index, S2) end, Streams1),
   
   mochijson2:encode(Streams2).

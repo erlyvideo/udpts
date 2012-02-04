@@ -23,6 +23,8 @@ typedef struct {
   ssize_t len;
   uint8_t counters[PID_COUNT];
   uint32_t error_count;
+  uint32_t scrambled;
+  uint32_t packet_count;
 } Udpts;
 
 static ErlDrvData udpts_drv_start(ErlDrvPort port, char *buff)
@@ -112,6 +114,16 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
       d->error_count = 0;
       return 4;
     }
+    case 3: {
+      memcpy(*rbuf, &d->scrambled, 4);
+      d->scrambled = 0;
+      return 4;
+    }
+    case 4: {
+      memcpy(*rbuf, &d->packet_count, 4);
+      d->packet_count = 0;
+      return 4;
+    }
     break;
     default:
     return 0;
@@ -126,8 +138,10 @@ static void check_errors(Udpts *d)
   assert(d->len % 188 == 0);
   for(packet = d->buf; packet < d->buf + d->len; packet += 188) {
     if(packet[0] == 0x47) {
+      d->packet_count++;
       uint16_t pid = packet[1] & 0x1F << 8 | packet[2];
       uint8_t counter = packet[3] & 0x0F;
+      if(packet[3] >> 7) d->scrambled++;
       // fprintf(stderr, "%d,%d,%d,%d:  %5d %2d\r\n", packet[0], packet[1], packet[2], packet[3], pid, counter);
       // fprintf(stderr, "Pid: %5d %2d\r\n", pid, counter);
       if(d->counters[pid] != 0xFF && d->counters[pid] != counter) {

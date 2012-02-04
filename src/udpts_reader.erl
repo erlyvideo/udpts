@@ -12,6 +12,8 @@
 
 -define(CMD_OPEN, 1).
 -define(CMD_ERRORS, 2).
+-define(CMD_SCRAMBLED, 3).
+-define(CMD_PACKET_COUNT, 4).
 
 %% External API
 -export([start_link/3]).
@@ -157,11 +159,13 @@ handle_info({Socket, {data, Data}}, #reader{socket = Socket, name = Name} = Read
   ets:update_element(udpts_streams, Name, {#stream.last_packet_at, os:timestamp()}),
   {noreply, handle_ts(Data, Reader)};
 
-handle_info(flush_errors, #reader{socket = Socket, port = Port, name = Name} = Reader) ->
-  case port_control(Socket, ?CMD_ERRORS, <<>>) of
-    % <<0:32>> -> error_logger:info_msg("~p no errors", [Name]), ok;
-    <<0:32>> -> ok;
-    <<Count:32/little>> -> error_logger:info_msg("~p ~p error_count: ~p", [Name, Port, Count])
+handle_info(flush_errors, #reader{socket = Socket, name = Name} = Reader) ->
+  <<Errors:32/little>> = port_control(Socket, ?CMD_ERRORS, <<>>),
+  <<PacketCount:32/little>> = port_control(Socket, ?CMD_PACKET_COUNT, <<>>),
+  ets:update_element(udpts_streams, Name, [{#stream.errors_count, Errors},{#stream.packets_count, PacketCount}]),
+  <<ScrambledCount:32/little>> = port_control(Socket, ?CMD_SCRAMBLED, <<>>),
+  if ScrambledCount > PacketCount div 10 -> ets:update_element(udpts_streams, Name, {#stream.scrambled, true});
+    true -> ets:update_element(udpts_streams, Name, {#stream.scrambled, false})
   end,
   {noreply, Reader};
 
