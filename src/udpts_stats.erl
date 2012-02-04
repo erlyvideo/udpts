@@ -18,7 +18,7 @@ json() ->
   Streams1 = [begin
     [{memory, Memory},{message_queue_len, Messages}] = process_info(Pid, [memory, message_queue_len]),
     SortIndex = case inet_parse:address(Multicast) of
-      {ok, {I1,I2,I3,I4}} -> (I1 bsl 24 + I2 bsl 16 + I3 bsl 8 + I4) bsl 16 + Port;
+      {ok, {I1,I2,I3,I4}} -> (I1 bsl 24 + I3 bsl 16 + I4 bsl 8 + I2) bsl 16 + Port;
       _ -> Port
     end,
     [{name, list_to_binary(Name)}
