@@ -115,7 +115,7 @@ init_driver(Port, Options) ->
 %%-------------------------------------------------------------------------
 handle_call({subscribe, Client, Socket}, _From, #reader{name = Name, clients = Clients} = Reader) ->
   erlang:monitor(process, Client),
-  gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: video/mpeg2\r\n\r\n"),
+  gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: video/mpeg2\r\n\r\n"),
   ets:update_counter(udpts_streams, Name, {#stream.clients_count, 1}),
   ets:insert(Clients, #udp_client{pid = Client, socket = Socket}),
   {reply, {ok, self()}, Reader};

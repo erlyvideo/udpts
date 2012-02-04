@@ -9,9 +9,6 @@ html() ->
   {ok, Bin} = file:read_file("index.html"),
   Bin.
 
-i2b(Num) when is_integer(Num) -> list_to_binary(integer_to_list(Num));
-i2b(T) -> list_to_binary(lists:flatten(io_lib:print("~p", [T]))).
-
 
 json() ->
   Now = os:timestamp(),

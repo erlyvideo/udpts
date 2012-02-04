@@ -111,26 +111,27 @@ handle_info({http, Socket, {http_request, _Method, {abs_path, Path}, _Version}},
       inet:setopts(Socket, [{active,once}]),
       {noreply, State#state{name = Stream}};
     "/favicon.ico" ->
-      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\n\r\nNot found\r\n"),
+      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\nNot found\r\n"),
       {stop, normal, State};
     "/api/"++Command ->  
       try handle_api(Command) of
         Reply0 ->
           Reply = [Reply0, "\n"],
-          gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "++integer_to_list(iolist_size(Reply))++"\r\n\r\n"),
+          gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: "++integer_to_list(iolist_size(Reply))++"\r\n\r\n"),
           gen_tcp:send(Socket, Reply),
           {stop, normal, State}
       catch
         Class:Error ->
-          gen_tcp:send(Socket, "HTTP/1.1 500 Server Error\r\n\r\n"),
+          gen_tcp:send(Socket, "HTTP/1.1 500 Server Error\r\nConnection: close\r\n\r\n"),
           gen_tcp:send(Socket, io_lib:format("~p:~p~n~p~n", [Class, Error, erlang:get_stacktrace()])),
           {stop, {error, Error}, State}
       end;
     "/" ->
-      gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\n\r\n"),
+      gen_tcp:send(Socket, "HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n"),
       gen_tcp:send(Socket, udpts_stats:html()),
       {stop, normal, State};
     _ ->
+      gen_tcp:send(Socket, "HTTP/1.1 400 Not Found\r\nConnection: close\r\n\r\nNot Found\r\n"),
       {stop, {unhandled_path, Path}, State}
   end;
   
@@ -147,7 +148,7 @@ handle_info({http, Socket, http_eoh}, #state{name = Name} = State) when Name =/=
       error_logger:info_msg("200 ~p ~s~n", [Addr, Name]),
       {noreply, State};
     {error, enoent} ->
-      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\n\r\nNot found\r\n"),
+      gen_tcp:send(Socket, "HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\nNot found\r\n"),
       error_logger:info_msg("404 ~p ~s~n", [Addr, Name]),
       {stop, normal, State}
   end;
