@@ -6,6 +6,7 @@
 	<table id="info">
 		<thead>
 			<tr>
+				<th field="link">Link</th>
 				<th field="name">Stream</th>
 				<th field="multicast">Multicast</th>
 				<th field="port">Port</th>
@@ -61,6 +62,9 @@
 					for(j = 0; j < fields.length; j++) {
 						if(fields[j] == "stop") {
 							tr += "<td><button onclick=\"stopChannel('" + data[i].name +"')\">Stop</button></td>";
+						} else if(fields[j] == "link") {
+							var link = document.location.href+"stream/"+data[i].name;
+							tr += "<td><a href='"+link+"'>"+link+"</a></td>"
 						} else {
 							tr += "<td>"+data[i][fields[j]]+"</td>";
 						}
