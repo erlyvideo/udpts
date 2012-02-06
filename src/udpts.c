@@ -100,6 +100,11 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
           return 0;
         }
       }
+      
+      int n = 2*1024 * 1024; // 10 seconds buffer
+      if (setsockopt(sock, SOL_SOCKET, SO_RCVBUF, &n, sizeof(n)) == -1) {
+        // deal with failure, or ignore if you can live with the default size
+      }
 
       d->socket = sock;
       flags = fcntl(d->socket, F_GETFL);
