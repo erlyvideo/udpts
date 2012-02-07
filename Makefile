@@ -34,9 +34,9 @@ test:
 	@erl -pa ebin -s udpts test -noshell -noinput -s init stop
 
 
-archive: compile
-	erl -pa ebin -hidden -noshell -s udpts archive -s init stop
 
+archive:
+	git archive --prefix=udpts/ master | gzip -9 > udpts.tar.gz
 
 install:
 	mkdir -p $(DESTROOT)$(ERLDIR)/ebin
