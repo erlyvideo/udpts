@@ -4,7 +4,7 @@ ERLDIR := $(ERLROOT)/lib/udpts-$(VERSION)
 DESTROOT := $(CURDIR)/debian/udpts
 OS = $(shell uname -s)
 ifeq ("$(OS)", "Linux")
-LIBFLAGS := -shared -fpic -I /usr/lib/erlang/erts-5.9/include
+LIBFLAGS := -shared -fpic -I /usr/lib/erlang/erts-5.9/include -I /usr/local/lib/erlang/erts-5.9/include
 else
 LIBFLAGS := -arch x86_64 -pipe -bundle -undefined dynamic_lookup -I /usr/local/lib/erlang/erts-5.9/include
 endif  

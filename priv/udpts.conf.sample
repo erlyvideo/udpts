@@ -1,5 +1,5 @@
 {udp_listeners, [
-  {5670,"vlc"}
+  {"239.1.1.1", 5670, "channel1"}
 ]}.
-{error_flush_timeout, 60000}.
+{error_flush_timeout, 1000}.
 {http_port,8000}.
