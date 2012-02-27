@@ -45,6 +45,7 @@ check_mtime() ->
   {ok, #file_info{mtime = Mtime}} = file:read_file_info(RealPath),
   if Mtime == OldMtime -> ok;
   true ->
+    error_logger:info_msg("Reloading config from ~s~n", [RealPath]),
     unload(),
     load()
   end.  
