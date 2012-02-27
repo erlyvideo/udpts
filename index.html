@@ -61,15 +61,22 @@
 				var i,j;
 				var tbody = "";
 				for(i = 0; i < data.length; i++) {
-					var tr = "<tr channel_name='"+data[i].name+"'>";
-					for(j = 0; j < fields.length; j++) {
-						if(fields[j] == "stop") {
-							tr += "<td><button onclick=\"stopChannel('" + data[i].name +"')\">Stop</button></td>";
-						} else if(fields[j] == "link") {
-							var link = document.location.href+"stream/"+data[i].name;
-							tr += "<td><a href='"+link+"'>"+link+"</a></td>"
-						} else {
-							tr += "<td>"+data[i][fields[j]]+"</td>";
+					var old = $("tr[channel_name='"+data[i].name+"']");
+					if(old.length > 0) {
+						for(var k in data[i]) {
+							old.find("td[field_id='"+k+"']").html(data[i][k]);
+						}
+					} else {
+						var tr = "<tr channel_name='"+data[i].name+"'>";
+						for(j = 0; j < fields.length; j++) {
+							if(fields[j] == "stop") {
+								tr += "<td><button onclick=\"stopChannel('" + data[i].name +"')\">Stop</button></td>";
+							} else if(fields[j] == "link") {
+								var link = document.location.href+"stream/"+data[i].name;
+								tr += "<td><a href='"+link+"'>"+link+"</a></td>"
+							} else {
+								tr += "<td field_id='"+fields[j]+"'>"+data[i][fields[j]]+"</td>";
+							}
 						}
 					}
 					tr += "</tr>";
