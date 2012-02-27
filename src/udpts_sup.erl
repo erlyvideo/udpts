@@ -87,7 +87,9 @@ start_reader(Port, Name, Options) ->
 stop_reader(Name) ->
   Id = reader_name(Name),
   supervisor:terminate_child(?MODULE, Id),
-  supervisor:delete_child(?MODULE, Id).
+  supervisor:delete_child(?MODULE, Id),
+  ets:delete(udpts_streams, Name),
+  ok.
 
 init([http_worker_sup]) ->
   {ok, {{simple_one_for_one, 100, 100}, [?SIMPLE_SERVER(udpts_http, [])]}};

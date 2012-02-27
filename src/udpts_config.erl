@@ -35,7 +35,7 @@ load() ->
 
 
 unload() ->
-  [udpts_sup:stop_reader(Id) || {"udpts_reader:"++_ = Id, _, worker, [udpts_reader]} <- supervisor:which_children(udpts_sup)],
+  [udpts_sup:stop_reader(Id) || {"udpts_reader:"++Id, _, worker, [udpts_reader]} <- supervisor:which_children(udpts_sup)],
   [udpts_sup:stop_http_listener(Port) || {{udpts_http,Port}, _, worker, [udpts_http]} <- supervisor:which_children(udpts_sup)],
   ok.
 

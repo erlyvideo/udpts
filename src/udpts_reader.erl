@@ -208,10 +208,6 @@ handle_ts(Packet, #reader{clients = Clients} = Reader) ->
       false -> [Pid|Acc]
     end
   end, [], Clients),
-  case Removing of
-    [] -> ok;
-    _ -> ?D({removing,Removing})
-  end,
   [Pid ! stop || Pid <- Removing],
   Reader.
 
