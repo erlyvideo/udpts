@@ -14,7 +14,7 @@
 
 -export([init/1,start_link/0]).
 
--export([start_reader/3, stop_reader/1, start_http_listener/1, start_http_worker/0]).
+-export([start_reader/3, stop_reader/1, start_http_listener/1, stop_http_listener/1, start_http_worker/0]).
 -define(NAMED_SERVER(Id,M,A), {Id,                               % Id       = internal id
     {M,start_link,A},                  % StartFun = {M, F, A}
     temporary,                               % Restart  = permanent | transient | temporary
@@ -57,6 +57,10 @@ start_http_listener(Port) ->
   },
   supervisor:start_child(?MODULE, Reader).
 
+stop_http_listener(Port) ->
+  Id = {udpts_http,Port},
+  supervisor:terminate_child(?MODULE, Id),
+  supervisor:delete_child(?MODULE, Id).
 
 start_http_worker() ->
   supervisor:start_child(http_worker_sup, []).
@@ -93,6 +97,14 @@ init([]) ->
   udpts_streams = ets:new(udpts_streams,[set,public,named_table,{keypos, #stream.name}]),
   
   Supervisors = [
+    {
+      udpts_config_sup,
+      {udpts_config, start_link, []},
+      permanent,
+      1000,
+      worker,
+      [udpts_config]
+    },
     ?SUPERVISOR_LINK(http_worker_sup)
   ],
   

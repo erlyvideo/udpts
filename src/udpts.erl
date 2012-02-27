@@ -21,25 +21,9 @@
 -export([test/0, reload/0, start_reader/3, stop_reader/1]).
 
 start() ->
-  Config = case file:path_consult(["priv", "/etc/udpts"], "udpts.conf") of
-    {ok, Env, _Path} ->
-      error_logger:info_msg("Reading config from ~s: ~n~p", [_Path, Env]),
-      Env;
-    _ ->
-      [{http_port,8000}]
-  end,
   application:start(udpts),
-  Options = [{error_flush_timeout, proplists:get_value(error_flush_timeout, Config, 60000)}],
-  io:format("Listeners: ~p~n", [proplists:get_value(udp_listeners, Config)]),
   
-  lists:foreach(fun
-    ({Port,Name}) ->
-      udpts:start_reader(Name, Port, Options);
-    ({Multicast,Port,Name}) ->
-      udpts:start_reader(Name, Port, [{mc,Multicast}|Options])
-  end, proplists:get_value(udp_listeners, Config, [])),
-  HTTPPort = proplists:get_value(http_port, Config),
-  udpts_sup:start_http_listener(HTTPPort),
+  udpts_config:load(),
   ok.
   
   
