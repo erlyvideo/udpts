@@ -22,6 +22,8 @@
 		<tbody>
 		</tbody>
 	</table>
+	<div style="display:none" id="player"><a href="#" onclick="$('#player').find('div').html('').end().hide(); return false;">Close</a>
+        <div></div></div>
 	<form action="/" onsubmit="addChannel(); return false;">
 		<label for="name">Name:</label><input name="name" id="name" />
 		<label for="mc">Multicast:</label><input name="mc" id="mc" />
@@ -59,12 +61,13 @@
 					fields[j] = $(cols[j]).attr("field");
 				}
 				var i,j;
-				var tbody = "";
+				var current_channels = {};
 				for(i = 0; i < data.length; i++) {
-					var old = $("tr[channel_name='"+data[i].name+"']");
+					current_channels[data[i].name] = data[i];
+					var old = $("#info tbody tr[channel_name='"+data[i].name+"']");
 					if(old.length > 0) {
 						for(var k in data[i]) {
-							old.find("td[field_id='"+k+"']").html(data[i][k]);
+							old.find("td[field_id='"+k+"']").html(data[i][k]).end();
 						}
 					} else {
 						var tr = "<tr channel_name='"+data[i].name+"'>";
@@ -73,16 +76,19 @@
 								tr += "<td><button onclick=\"stopChannel('" + data[i].name +"')\">Stop</button></td>";
 							} else if(fields[j] == "link") {
 								var link = document.location.href+"stream/"+data[i].name;
-								tr += "<td><a href='"+link+"'>"+link+"</a></td>"
+								tr += "<td><a onclick='return play(this);' href='"+link+"'>"+link+"</a></td>"
 							} else {
 								tr += "<td field_id='"+fields[j]+"'>"+data[i][fields[j]]+"</td>";
 							}
 						}
+						tr += "</tr>";
+						$("#info tbody").append(tr);
 					}
-					tr += "</tr>";
-					tbody += tr;
 				}
-				$("#info tbody").html(tbody);
+				$("#info tbody tr").each(function(){
+					var tr_name = $(this).attr("channel_name");
+					if(!current_channels[tr_name]) $(this).remove();
+				});
 				if(callback) callback(data);
 			});
 		}
@@ -91,6 +97,13 @@
 			loadInfo(function() {
 				setTimeout(periodicLoader, 1000);
 			})
+		}
+
+		function play(link) {
+			$("#player").show().find("div").
+                        html('<embed type="application/x-vlc-plugin" pluginspage="http://www.videolan.org/" width=640 height=480 src="'+
+                          $(link).attr('href')+'">');
+ 			return false;
 		}
 		
 		$(function() {
