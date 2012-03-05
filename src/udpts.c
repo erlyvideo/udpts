@@ -153,7 +153,7 @@ static void check_errors(Udpts *d)
         // fprintf(stderr, "Pid: %5d %2d %2d\r\n", pid, d->counters[pid], counter);
         d->error_count++;
       }
-      d->counters[pid] = (counter + 1) % 0x10; 
+      d->counters[pid] = (counter + 1) % 0x10;
     }
   }
 }

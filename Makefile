@@ -28,7 +28,7 @@ run: compile priv/udpts.conf
 	ERL_LIBS=/usr/local/lib:.. erl +A 4 +K true -pa ebin -boot start_sasl -s udpts -sname udpts
 
 start: compile
-	ERL_LIBS=/usr/local/lib:.. erl +A 4 +K true -pa ebin -boot start_sasl -sasl sasl_error_logger '{file, "error.log"}' -noinput -detached -s udpts -sname udpts
+	ERL_LIBS=/usr/local/lib:.. erl +A 4 +K true -pa ebin -boot start_sasl -sasl sasl_error_logger '{file, "error.log"}' -noinput -detached -s udpts
 	
 test:
 	@erl -pa ebin -s udpts test -noshell -noinput -s init stop

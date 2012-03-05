@@ -22,9 +22,18 @@
 
 start() ->
   application:start(udpts),
-  
+  write_pid(),
   udpts_config:load(),
   ok.
+
+
+write_pid() ->
+  Path = case os:getenv("PID_PATH") of
+    false -> "log/flussonic.pid";
+    PidPath -> PidPath
+  end,
+  filelib:ensure_dir(Path),
+  file:write_file(Path, os:getpid()).
   
   
   

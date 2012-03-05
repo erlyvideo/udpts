@@ -1,0 +1,34 @@
+#!/bin/bash
+
+UDPTS=/opt/udpts
+
+NAME=udpts
+if [ "$2" != "" ]; then
+  NAME="$2"
+fi
+
+case $1 in
+"start")
+  mkdir -p /var/log/$NAME
+  mkdir -p /var/run/$NAME
+	run_erl -daemon /var/run/$NAME/ /var/log/$NAME "exec $0 launch"
+  ;;
+"stop")
+  echo -e "init:stop().\n" > /var/run/$NAME/erlang.pipe.1.w
+	sleep 1
+  kill `cat /var/run/$NAME.pid`
+	;;
+"run")
+  $0 launch
+  ;;
+"launch")
+  cd $UDPTS
+  export ERL_LIBS=apps:deps
+  export PID_PATH="/var/run/$NAME.pid"
+  CMD="erl +K true +A 16 +a 2048 -name $NAME@127.0.0.1 -pa apps/*/ebin -pa deps/*/ebin -boot start_sasl -s udpts -sasl errlog_type error"
+  exec $CMD
+  ;;
+*)
+  echo "$0 start|stop|run [name]"
+esac
+
