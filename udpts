@@ -23,10 +23,9 @@ case $1 in
   ;;
 "launch")
   cd $UDPTS
-  export ERL_LIBS=apps:deps
   export PID_PATH="/var/run/$NAME.pid"
   export CONFIG_PATH="priv/$NAME.conf"
-  CMD="erl +K true +A 16 +a 2048 -name $NAME@127.0.0.1 -pa apps/*/ebin -pa deps/*/ebin -boot start_sasl -s udpts -sasl errlog_type error"
+  CMD="erl +K true +A 16 +a 2048 -name $NAME@127.0.0.1 -pa ebin -boot start_sasl -s udpts -sasl errlog_type error"
   exec $CMD
   ;;
 *)
