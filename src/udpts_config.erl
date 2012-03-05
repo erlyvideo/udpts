@@ -14,7 +14,11 @@ start_link() ->
 
 
 load() ->
-  {ok, Config, RealPath} = file:path_consult(["priv", "/etc/udpts"], "udpts.conf"),
+  {ok, Config, RealPath} = case os:getenv("CONFIG_PATH") of
+    false -> file:path_consult(["priv", "/etc/udpts"], "udpts.conf");
+    ConfigPath -> file:path_consult(["."], ConfigPath)
+  end,
+      
   error_logger:info_msg("Reading config from ~s: ~n~p", [RealPath, Config]),
   Options = [{error_flush_timeout, proplists:get_value(error_flush_timeout, Config, 60000)}],
   io:format("Listeners: ~p~n", [proplists:get_value(udp_listeners, Config)]),
