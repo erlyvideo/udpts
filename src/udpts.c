@@ -161,12 +161,10 @@ static void check_errors(Udpts *d)
 static void udpts_drv_input(ErlDrvData handle, ErlDrvEvent event)
 {
   Udpts* d = (Udpts*) handle;
-  struct sockaddr_in peer;
-  socklen_t peer_len;
   ssize_t s;
   uint8_t *packet;
   
-  while((s = recvfrom(d->socket, d->buf + d->len, d->size - d->len, 0, (struct sockaddr *)&peer, &peer_len)) > 0) {
+  while((s = recv(d->socket, d->buf + d->len, d->size - d->len, 0)) > 0) {
     d->len += s;
     if(d->len > LIMIT_SIZE) {
       check_errors(d);
