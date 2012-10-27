@@ -73,6 +73,10 @@ static int udpts_drv_command(ErlDrvData handle, unsigned int command, char *buf,
       memcpy(&port, buf, 2);
       // fprintf(stderr, "Connecting to port %d\r\n", port);
       sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+      int reuse = 1;
+      setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+           (void *)&reuse, sizeof(reuse));
       
       bzero(&si, sizeof(si));
       si.sin_family = AF_INET;
