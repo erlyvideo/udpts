@@ -29,7 +29,7 @@ start() ->
 
 write_pid() ->
   Path = case os:getenv("PID_PATH") of
-    false -> "log/flussonic.pid";
+    false -> "log/udpts.pid";
     PidPath -> PidPath
   end,
   filelib:ensure_dir(Path),

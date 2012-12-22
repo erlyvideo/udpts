@@ -27,7 +27,7 @@ load() ->
     ({Port,Name}) ->
       udpts:start_reader(Name, Port, Options);
     ({Multicast,Port,Name}) ->
-      udpts:start_reader(Name, Port, [{mc,Multicast}|Options])
+      udpts:start_reader(Name, Port, [{multicast_ttl,3},{ip,Multicast}|Options])
   end, proplists:get_value(udp_listeners, Config, [])),
   HTTPPort = proplists:get_value(http_port, Config),
   udpts_sup:start_http_listener(HTTPPort),

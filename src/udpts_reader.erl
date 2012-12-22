@@ -10,11 +10,6 @@
 -behaviour(gen_server).
 -include("udpts.hrl").
 
--define(CMD_OPEN, 1).
--define(CMD_ERRORS, 2).
--define(CMD_SCRAMBLED, 3).
--define(CMD_PACKET_COUNT, 4).
-
 %% External API
 -export([start_link/3]).
 
@@ -42,6 +37,7 @@ subscribe(Name, Socket) ->
   socket,
   name,
   port,
+  seen,
   multicast,
   clients
 }).
@@ -69,37 +65,15 @@ subscribe(Name, Socket) ->
 
 
 init([Port, Name, Options]) ->
-  {ok, Socket} = init_driver(Port, Options),
-  % {ok, Socket} = init_socket(Socket),
+  {ok, Socket} = mpegts_udp:open(Port, Options),
+  mpegts_udp:active_once(Socket),
       
   error_logger:info_msg("UDP Listener bound to port: ~p", [Port]),
-  erlang:process_flag(trap_exit, true),
   ets:insert(udpts_streams, #stream{name = Name, pid = self(), port = Port, multicast = proplists:get_value(mc, Options, ""), last_packet_at = {0,0,0}}),
   timer:send_interval(proplists:get_value(error_flush_timeout, Options, 60000), flush_errors),
   Clients = ets:new(clients, [private,{keypos,#udp_client.pid}]),
   {ok, #reader{socket = Socket, port = Port, name = Name, clients = Clients}}.
 
-
-init_driver(Port, Options) ->
-  Path = case code:lib_dir(udpts,ebin) of
-    {error, _} -> "ebin";
-    LibDir -> LibDir
-  end,
-  io:format("Load from ~p~n", [Path]),
-  case erl_ddll:load_driver(Path, udpts_drv) of
-  	ok -> ok;
-  	{error, already_loaded} -> ok;
-  	{error, Error} -> exit({error, {could_not_load_driver,erl_ddll:format_error(Error)}})
-  end,
-  Socket = open_port({spawn, udpts_drv}, [binary]),
-  Multicast = case proplists:get_value(mc, Options) of
-    undefined -> <<>>;
-    MC -> 
-      {ok, {I1,I2,I3,I4}} = inet_parse:address(MC),
-      <<I1, I2, I3, I4>>
-  end,
-  <<"ok">> = port_control(Socket, ?CMD_OPEN, <<Port:16, Multicast/binary>>),
-  {ok, Socket}.
 
 
 
@@ -154,16 +128,21 @@ handle_info({'DOWN', _, process, Client, _Reason}, #reader{name = Name, clients 
   {noreply, Reader};
 
 
-handle_info({Socket, {data, Data}}, #reader{socket = Socket, name = Name} = Reader) ->
-  case get(data_seen) of undefined -> error_logger:info_msg("First data for ~s~n", [Reader#reader.name]), put(data_seen, true); _ -> ok end,
+handle_info({mpegts_udp, Socket, Data}, #reader{socket = Socket, name = Name, seen = Seen} = Reader) ->
+  mpegts_udp:active_once(Socket),
+
+  Reader1 = case Seen of 
+    undefined -> error_logger:info_msg("First data for ~s~n", [Name]), Reader#reader{seen = true};
+    _ -> Reader 
+  end,
   ets:update_element(udpts_streams, Name, {#stream.last_packet_at, os:timestamp()}),
-  {noreply, handle_ts(Data, Reader)};
+  {noreply, handle_ts(Data, Reader1)};
 
 handle_info(flush_errors, #reader{socket = Socket, name = Name} = Reader) ->
-  <<Errors:32/little>> = port_control(Socket, ?CMD_ERRORS, <<>>),
-  <<PacketCount:32/little>> = port_control(Socket, ?CMD_PACKET_COUNT, <<>>),
+  Errors = mpegts_udp:control(Socket, errors),
+  PacketCount = mpegts_udp:control(Socket, packet_count),
   ets:update_element(udpts_streams, Name, [{#stream.errors_count, Errors},{#stream.packets_count, PacketCount}]),
-  <<ScrambledCount:32/little>> = port_control(Socket, ?CMD_SCRAMBLED, <<>>),
+  ScrambledCount = mpegts_udp:control(Socket, scrambled),
   if ScrambledCount > PacketCount div 10 -> ets:update_element(udpts_streams, Name, {#stream.scrambled, true});
     true -> ets:update_element(udpts_streams, Name, {#stream.scrambled, false})
   end,

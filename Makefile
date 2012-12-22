@@ -1,24 +1,13 @@
-# include debian/version.mk
-ERLROOT := $(shell erl -eval 'io:format("~s", [code:root_dir()])' -s init stop -noshell)
-ERLDIR := $(ERLROOT)/lib/udpts-$(VERSION)
 DESTROOT := $(CURDIR)/debian/udpts
 OS = $(shell uname -s)
-ifeq ("$(OS)", "Linux")
-LIBFLAGS := -shared -fpic -I /usr/lib/erlang/erts-5.9/include -I /usr/local/lib/erlang/erts-5.9/include
-else
-LIBFLAGS := -arch x86_64 -pipe -bundle -undefined dynamic_lookup -I /usr/local/lib/erlang/erts-5.9/include
-endif  
 
 all: compile
   
-ebin/udpts_drv.so: src/udpts.c
-	gcc -o ebin/udpts_drv.so src/udpts.c $(LIBFLAGS)
-
-compile: ebin/udpts_drv.so
-	erl -make
+compile: 
+	./rebar compile
 	
 clean:
-	rm -fv ebin/*.beam
+	./rebar clean
 	rm -fv erl_crash.dump
 
 priv/udpts.conf:
